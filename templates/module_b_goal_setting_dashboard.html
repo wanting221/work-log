@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}目標設定（模組B）{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-bullseye me-2"></i>目標設定（模組B）</h4>
+<p class="text-muted small">
+  每個部門設定一份共用的硬指標範本（挑選指標、目標值、權重），不分考核期間、不分人員，
+  同一部門所有人都套用同一份設定。已經套用過的考核表不會因為之後調整範本而改變。
+</p>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>部門</th><th>設定目標</th></tr>
+      </thead>
+      <tbody>
+        {% for dept in departments %}
+        <tr>
+          <td>{{ dept }}</td>
+          <td>
+            <a href="{{ url_for('module_b_review.goal_setting_edit', department=dept) }}" class="btn btn-sm btn-outline-primary">設定目標</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="text-center text-muted py-4">目前還沒有任何部門建立硬指標庫，請先到「部門硬指標庫」頁面新增。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

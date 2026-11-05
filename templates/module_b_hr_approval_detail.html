@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}目標設定審核詳情{% endblock %}
+{% block content %}
+<h4 class="mb-2"><i class="fa-solid fa-stamp me-2"></i>{{ form.engineer.name }}（{{ form.engineer.emp_id }}）的目標設定</h4>
+<div class="text-muted mb-3">{{ form.period.label }}　｜　部門：{{ form.engineer.department or '-' }}　｜　建議硬/軟權重：{{ weight_config.hard }}% / {{ weight_config.soft }}%</div>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr><th style="width:18%;">指標名稱</th><th style="width:32%;">衡量標準</th><th style="width:36%;">目標值</th><th style="width:14%;">權重 %</th></tr>
+      </thead>
+      <tbody>
+        {% for hi in hard_indicators %}
+        <tr>
+          <td>{{ hi.library_indicator.name }}</td>
+          <td class="small text-muted">{{ hi.library_indicator.measurement_standard or '-' }}</td>
+          <td>{{ hi.target_value or '-' }}</td>
+          <td>{{ hi.weight_pct }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-center text-muted py-3">尚未挑選任何指標</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mt-3">
+  <a href="{{ url_for('module_b_review.hr_approval_dashboard') }}" class="btn btn-outline-secondary">返回</a>
+  <form method="POST" action="{{ url_for('module_b_review.hr_reject', form_id=form.id) }}" onsubmit="return confirm('確定要駁回這份目標設定嗎？部門主管需要重新設定。')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-outline-danger">駁回</button>
+  </form>
+  <form method="POST" action="{{ url_for('module_b_review.hr_approve', form_id=form.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-primary">核准</button>
+  </form>
+</div>
+{% endblock %}

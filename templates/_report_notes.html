@@ -1,0 +1,125 @@
+{# 附註／需要討論留言區塊，供 report_fill.html（工程師）與 view_engineer.html（管理者）共用 #}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title"><i class="fa-solid fa-comments me-1"></i>附註／需要討論</h6>
+
+    <div id="notes-list-{{ report.id }}" class="notes-scroll-box">
+      {% for note in report.notes %}
+      <div class="note-item {% if note.author_role == 'admin' %}note-admin{% endif %}" data-note-id="{{ note.id }}">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+          <strong>
+            {{ note.author_name }}
+            {% if note.author_role == 'admin' %}<span class="badge bg-primary ms-1">管理者</span>{% endif %}
+          </strong>
+          <span class="text-muted small text-nowrap ms-2">{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        </div>
+        <div class="mt-1" style="white-space: pre-wrap;">{{ note.content }}</div>
+        <div class="mt-2">
+          {% if current_user.role != 'viewer' %}
+          <select class="form-select form-select-sm note-status-picker d-inline-block w-auto note-status-{{ note.status }}"
+                  data-color-class="note-status-{{ note.status }}"
+                  onchange="updateNoteStatus({{ note.id }}, this)">
+            {% for s in ['待討論', '討論中', '已處理'] %}
+              <option value="{{ s }}" {% if note.status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <span class="badge note-status-badge-{{ note.status }}">{{ note.status }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="text-muted small {% if report.notes %}d-none{% endif %}" id="no-notes-{{ report.id }}">目前尚無留言</div>
+
+    {% if current_user.role != 'viewer' %}
+    <div class="d-flex gap-2 mt-3 flex-wrap">
+      <select class="form-select form-select-sm" id="note-status-input-{{ report.id }}" style="max-width:130px; padding-right:28px;">
+        <option value="待討論">待討論</option>
+        <option value="討論中">討論中</option>
+        <option value="已處理">已處理</option>
+      </select>
+      <div class="input-group input-group-sm flex-grow-1" style="min-width:180px;">
+        <input type="text" class="form-control" id="note-input-{{ report.id }}"
+               placeholder="輸入附註或需要討論的事項...">
+        <button class="btn btn-primary" onclick="submitReportNote({{ report.id }})" title="送出">
+          <i class="fa-solid fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function noteStatusBadgeClass(status) {
+  return 'note-status-badge-' + status;
+}
+
+function submitReportNote(reportId) {
+  const input = document.getElementById(`note-input-${reportId}`);
+  const statusSelect = document.getElementById(`note-status-input-${reportId}`);
+  const content = input.value.trim();
+  if (!content) return;
+  const status = statusSelect ? statusSelect.value : '待討論';
+
+  fetch('/report/note/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+    body: JSON.stringify({report_id: reportId, content: content, status: status})
+  }).then(r => r.json()).then(res => {
+    if (!res.success) {
+      alert(res.message || '送出失敗');
+      return;
+    }
+    const list = document.getElementById(`notes-list-${reportId}`);
+    const noNotesEl = document.getElementById(`no-notes-${reportId}`);
+    if (noNotesEl) noNotesEl.classList.add('d-none');
+
+    const div = document.createElement('div');
+    div.className = 'note-item' + (res.note.author_role === 'admin' ? ' note-admin' : '');
+    div.dataset.noteId = res.note.id;
+    const adminBadge = res.note.author_role === 'admin' ? '<span class="badge bg-primary ms-1">管理者</span>' : '';
+    div.innerHTML = `
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-1">
+        <strong>${res.note.author_name}${adminBadge}</strong>
+        <span class="text-muted small text-nowrap ms-2">${res.note.created_at}</span>
+      </div>
+      <div class="mt-1" style="white-space: pre-wrap;"></div>
+      <div class="mt-2">
+        <select class="form-select form-select-sm note-status-picker d-inline-block w-auto ${noteStatusBadgeClass(res.note.status)}"
+                data-color-class="${noteStatusBadgeClass(res.note.status)}"
+                onchange="updateNoteStatus(${res.note.id}, this)">
+          <option value="待討論" ${res.note.status === '待討論' ? 'selected' : ''}>待討論</option>
+          <option value="討論中" ${res.note.status === '討論中' ? 'selected' : ''}>討論中</option>
+          <option value="已處理" ${res.note.status === '已處理' ? 'selected' : ''}>已處理</option>
+        </select>
+      </div>
+    `;
+    div.querySelector('div.mt-1').textContent = res.note.content;
+    // 新到舊由上到下排列，所以新留言插入在最上方
+    list.insertBefore(div, list.firstChild);
+    list.scrollTop = 0;
+    input.value = '';
+  }).catch(() => alert('送出失敗，請檢查網路連線'));
+}
+
+function updateNoteStatus(noteId, selectEl) {
+  const newStatus = selectEl.value;
+  const newColorClass = noteStatusBadgeClass(newStatus);
+  const oldColorClass = selectEl.dataset.colorClass;
+  if (oldColorClass) selectEl.classList.remove(oldColorClass);
+  selectEl.classList.add(newColorClass);
+  selectEl.dataset.colorClass = newColorClass;
+
+  fetch(`/report/note/${noteId}/status`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+    body: JSON.stringify({status: newStatus})
+  }).then(r => r.json()).then(res => {
+    if (!res.success) {
+      alert(res.message || '更新狀態失敗');
+    }
+  }).catch(() => alert('更新狀態失敗，請檢查網路連線'));
+}
+</script>

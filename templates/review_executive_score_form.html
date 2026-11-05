@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}覆評 - {{ form.engineer.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">為 {{ form.engineer.name }}（{{ form.engineer.emp_id }}）覆評 - {{ form.period.label }}</h4>
+  <a href="{{ url_for('review_executive.dashboard') }}" class="btn btn-sm btn-outline-secondary">返回列表</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-header bg-white"><strong>員工自評內容</strong></div>
+  <div class="card-body">
+    <p><strong>① 增加公司營收、獲利：</strong><br>{{ form.revenue_report or '（未填寫）' }}</p>
+    <p><strong>② 降低成本：</strong><br>{{ form.cost_report or '（未填寫）' }}</p>
+    <p class="mb-0"><strong>③ 降低風險、準時達成任務：</strong><br>{{ form.risk_report or '（未填寫）' }}</p>
+  </div>
+</div>
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card mb-3">
+    <div class="card-header bg-white"><strong>覆評（0～100分）</strong></div>
+    <div class="card-body">
+      <div class="table-responsive">
+      <table class="table align-middle">
+        <thead><tr><th>考評項目</th><th style="width:100px;">權重</th><th style="width:120px;">直屬主管評分</th><th style="width:150px;">覆評分數</th></tr></thead>
+        <tbody>
+          {% for crit in criteria_list %}
+          <tr>
+            <td>{{ crit.name }}</td>
+            <td>{{ (crit.weight * 100) | round(0) | int }}%</td>
+            <td class="text-muted">{{ scores[crit.id].supervisor_score if scores.get(crit.id) and scores[crit.id].supervisor_score is not none else '-' }}</td>
+            <td>
+              <input type="number" step="0.1" min="0" max="100" class="form-control"
+                     name="score_{{ crit.id }}"
+                     value="{{ scores[crit.id].executive_score if scores.get(crit.id) and scores[crit.id].executive_score is not none else '' }}">
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <p class="text-muted small mb-0">
+        評分參考：0~59 分績效成果低於職務要求；60~70 分尚符職務要求；71~85 分很好；86~100 分極為優秀。
+        最終實得分數會取直屬主管評分與覆評分數的平均。
+      </p>
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">儲存覆評</button>
+</form>
+{% endblock %}

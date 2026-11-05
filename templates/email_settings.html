@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}設定提醒{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-envelope-open-text me-2"></i>設定提醒</h4>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">SMTP 寄件設定</h6>
+    <div class="small text-muted mb-3">
+      設定後立即生效，優先於 <code>.env</code> 裡的預設值，不需要重新部署系統。
+      Gmail 請使用「應用程式密碼」而非帳號登入密碼；Microsoft 365 伺服器為 <code>smtp.office365.com</code>。
+    </div>
+    <form method="POST" action="{{ url_for('email_settings.update_smtp_settings') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label small">SMTP 伺服器</label>
+          <input class="form-control" name="smtp_server" value="{{ settings.get('smtp_server', 'ms.mailcloud.com.tw') }}" placeholder="例如：smtp.gmail.com">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small">連接埠</label>
+          <input class="form-control" name="smtp_port" value="{{ settings.get('smtp_port', '465') }}" placeholder="465">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small d-block">協定</label>
+          <div class="form-check mt-2">
+            <input type="checkbox" class="form-check-input" name="smtp_use_tls" value="1" id="use_tls_check"
+                   {% if settings.get('smtp_use_tls', 'True') == 'True' %}checked{% endif %}>
+            <label class="form-check-label small" for="use_tls_check">啟用 STARTTLS</label>
+          </div>
+          <div class="form-text">埠號 465 會自動用 SSL 直接加密連線，不需要靠這個選項；這個選項只影響埠號 587 這類需要先連線再升級加密的情況。</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">寄件者顯示名稱</label>
+          <input class="form-control" name="mail_sender_name" value="{{ settings.get('mail_sender_name', 'RD週報系統') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">寄件帳號 (SMTP 帳號)</label>
+          <input class="form-control" name="smtp_username" value="{{ settings.get('smtp_username', '') }}" placeholder="you@example.com">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">密碼 / 應用程式密碼</label>
+          <input type="password" class="form-control" name="smtp_password" autocomplete="new-password"
+                 placeholder="{% if smtp_password_set %}已設定，留空表示不變更{% else %}尚未設定{% endif %}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">每分鐘寄送上限</label>
+          <input type="number" class="form-control" name="smtp_rate_limit" min="0"
+                 value="{{ settings.get('smtp_rate_limit', '0') }}" placeholder="0 表示不限制">
+          <div class="form-text">避免短時間內大量寄信被 SMTP 服務商判定為濫發而暫時封鎖，0 表示不限制。</div>
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary" type="submit">儲存 SMTP 設定</button>
+      </div>
+    </form>
+    <form method="POST" action="{{ url_for('email_settings.test_smtp_settings') }}" class="mt-2"
+          onsubmit="return confirm('確定要寄送測試信到你目前登入帳號的信箱嗎？')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-secondary btn-sm" type="submit">
+        <i class="fa-solid fa-paper-plane me-1"></i>寄送測試信給自己
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">系統參數設定</h6>
+    <form method="POST" action="{{ url_for('email_settings.update_general_settings') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-check form-switch mb-3">
+        <input type="checkbox" class="form-check-input" name="reminder_enabled" id="reminderEnabledSwitch"
+               {% if settings.get('reminder_enabled', 'True') == 'True' %}checked{% endif %}>
+        <label class="form-check-label" for="reminderEnabledSwitch">啟用自動提醒信</label>
+        <div class="small text-muted">關閉後，系統不會再自動寄送截止日提醒信給尚未填寫週報的人（下方的星期/時間設定會保留，重新啟用時沿用）。</div>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-3">
+          <label class="form-label small">填寫截止日（星期幾）</label>
+          <select class="form-select" name="deadline_weekday">
+            {% for i, name in [(0,'一'),(1,'二'),(2,'三'),(3,'四'),(4,'五'),(5,'六'),(6,'日')] %}
+              <option value="{{ i }}" {% if settings.get('deadline_weekday')|string == i|string %}selected{% endif %}>星期{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">截止時間</label>
+          <input type="time" class="form-control" name="deadline_time" value="{{ settings.get('deadline_time', '17:00') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">提醒日（星期幾）</label>
+          <select class="form-select" name="reminder_weekday">
+            {% for i, name in [(0,'一'),(1,'二'),(2,'三'),(3,'四'),(4,'五'),(5,'六'),(6,'日')] %}
+              <option value="{{ i }}" {% if settings.get('reminder_weekday')|string == i|string %}selected{% endif %}>星期{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">提醒時間</label>
+          <input type="time" class="form-control" name="reminder_time" value="{{ settings.get('reminder_time', '17:00') }}">
+        </div>
+      </div>
+      <div class="small text-muted mt-2">
+        <i class="fa-solid fa-circle-info me-1"></i>修改後立即套用到排程，不需要重新啟動系統。
+      </div>
+      <button class="btn btn-primary mt-3" type="submit">儲存設定</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">Email 範本編輯</h6>
+    <div class="small text-muted mb-3">可用變數：{name} 姓名、{year} 年度、{week} 週次、{deadline} 截止時間</div>
+    <div class="accordion" id="templateAccordion">
+      {% for t in templates %}
+      <div class="accordion-item">
+        <h2 class="accordion-header">
+          <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+                  data-bs-toggle="collapse" data-bs-target="#collapse{{ t.id }}">
+            {{ t.name }}
+          </button>
+        </h2>
+        <div id="collapse{{ t.id }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+             data-bs-parent="#templateAccordion">
+          <div class="accordion-body">
+            <form method="POST" action="{{ url_for('email_settings.update_template', template_id=t.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="mb-2">
+                <label class="form-label small">標題</label>
+                <input class="form-control" name="subject" value="{{ t.subject }}">
+              </div>
+              <div class="mb-2">
+                <label class="form-label small">內容 (支援 HTML)</label>
+                <textarea class="form-control" name="body" rows="5">{{ t.body }}</textarea>
+              </div>
+              <button class="btn btn-outline-primary btn-sm" type="submit">儲存範本</button>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

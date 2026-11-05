@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}未填寫追蹤{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-triangle-exclamation me-2"></i>未填寫追蹤</h4>
+  <form class="d-flex gap-2" method="GET">
+    <input type="number" class="form-control form-control-sm" name="year" value="{{ year }}" style="width:100px">
+    <input type="number" class="form-control form-control-sm" name="week" value="{{ week }}" style="width:90px">
+    <button class="btn btn-sm btn-outline-primary">查詢</button>
+  </form>
+</div>
+<div class="text-muted mb-3">{{ year }} 年 第 {{ week }} 週（{{ format_week_range(year, week) }}）｜應填 {{ summary.total }} 人，已填 {{ summary.submitted_count }} 人，未填 {{ summary.not_submitted_count }} 人</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-3">
+      <h6 class="card-title mb-0">未填寫名單</h6>
+      {% if current_user.role in ('admin', 'dept_manager', 'group_manager') and summary.not_submitted %}
+      <button class="btn btn-sm btn-danger" onclick="remindAll()">
+        <i class="fa-solid fa-bell me-1"></i>一鍵提醒全部
+      </button>
+      {% endif %}
+    </div>
+    <table class="table table-hover">
+      <thead><tr><th>工號</th><th>姓名</th><th>組別</th><th>Email</th>{% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for e in summary.not_submitted %}
+        <tr id="row_{{ e.id }}">
+          <td>{{ e.emp_id }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ e.group.name if e.group else '-' }}</td>
+          <td>{{ e.email }}</td>
+          {% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}
+          <td>
+            <button class="btn btn-sm btn-outline-warning" onclick="remindOne({{ e.id }})">
+              <i class="fa-solid fa-bell"></i> 提醒
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-success">所有工程師皆已完成填寫 🎉</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+function remindOne(id) {
+  fetch(`/tracking/remind/${id}`, {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+function remindAll() {
+  if (!confirm('確定要對所有未填寫工程師發送提醒信嗎？')) return;
+  fetch('/tracking/remind_all', {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+</script>
+{% endblock %}

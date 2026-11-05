@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}{{ period.label }} 排名（模組B）{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-ranking-star me-2"></i>{{ period.label }} 分數與排名</h4>
+  <div class="d-flex gap-2">
+    <form method="POST" action="{{ url_for('module_b_review.recalculate_rankings', period_id=period.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-sm btn-outline-secondary">重新計算排名</button>
+    </form>
+    <a href="{{ url_for('review_admin.periods') }}" class="btn btn-sm btn-outline-secondary">返回考核期間管理</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>公司排名</th><th>部門排名</th><th>員工</th><th>部門</th>
+          <th>實得分數合計</th><th>排名調整後分數</th><th style="width:130px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for result in results %}
+        <tr>
+          <td>{{ result.company_rank }}</td>
+          <td>{{ result.department_rank }}</td>
+          <td>{{ result.module_b_form.engineer.name }}（{{ result.module_b_form.engineer.emp_id }}）</td>
+          <td>{{ result.department or '-' }}</td>
+          <td>{{ result.total_score }}</td>
+          <td>{{ result.adjusted_score if result.adjusted_score is not none else '-' }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#adj-{{ result.id }}">調整分數</button>
+          </td>
+        </tr>
+        <tr class="collapse" id="adj-{{ result.id }}">
+          <td colspan="7">
+            <form method="POST" action="{{ url_for('module_b_review.adjust_ranking', result_id=result.id) }}" class="row g-2 p-2 bg-light">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="col-md-3">
+                <input type="number" step="0.01" name="adjusted_score" class="form-control" placeholder="調整後分數（留空清除調整）"
+                       value="{{ result.adjusted_score if result.adjusted_score is not none else '' }}">
+              </div>
+              <div class="col-md-6">
+                <input type="text" name="adjusted_note" class="form-control" placeholder="調整原因說明"
+                       value="{{ result.adjusted_note or '' }}">
+              </div>
+              <div class="col-md-3">
+                <button type="submit" class="btn btn-primary btn-sm w-100">儲存調整</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">尚無已完成評分的考核表可供排名。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

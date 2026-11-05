@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% block title %}依專案/客戶檢視{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-diagram-project me-2"></i>依專案/客戶檢視</h4>
+  {% if current_user.role in ('admin', 'dept_manager') %}
+  <a href="{{ url_for('admin_project.index') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="fa-solid fa-folder-tree me-1"></i>專案清單管理
+  </a>
+  {% endif %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <div class="col-md-4">
+        <label class="form-label small">專案／客戶</label>
+        <select class="form-select" name="project_id">
+          <option value="">請選擇專案</option>
+          {% for p in projects %}
+            <option value="{{ p.id }}" {% if selected_project and selected_project.id == p.id %}selected{% endif %}>
+              {{ p.code }} - {{ p.full_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="year_start" value="{{ year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="week_start" value="{{ week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="year_end" value="{{ year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="week_end" value="{{ week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-2">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_project %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <h5>{{ selected_project.code }} - {{ selected_project.full_name }}</h5>
+        <span class="badge {% if selected_project.status == '進行中' %}bg-success{% else %}bg-secondary{% endif %}">{{ selected_project.status }}</span>
+        {% if selected_project.owner %}
+          <span class="ms-2 text-muted small">主要負責工程師：{{ selected_project.owner.name }}</span>
+        {% endif %}
+      </div>
+      <div class="text-end">
+        <div class="small text-muted">{% if is_single_week %}本週{% else %}區間內{% endif %}涉入人次</div>
+        <div class="h4 mb-0">{{ entries|length }}</div>
+        <div class="small text-muted mt-1">累積週數（熱度指標）</div>
+        <div class="h5 mb-0">{{ total_weeks_involved }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if is_single_week %}
+        {{ year_start }}年第{{ week_start }}週（{{ format_week_range(year_start, week_start) }}） - 各工程師處理內容
+      {% else %}
+        {{ year_start }}年第{{ week_start }}週 ～ {{ year_end }}年第{{ week_end }}週 - 各工程師處理內容
+      {% endif %}
+    </h6>
+    {% for entry in entries %}
+    <div class="border rounded p-3 mb-2">
+      <div class="fw-bold mb-2">
+        <i class="fa-solid fa-user me-1"></i>{{ entry.engineer.name }}
+        {% if selected_project.owner_engineer_id == entry.engineer.id %}
+          <span class="badge bg-warning text-dark">主要負責窗口</span>
+        {% endif %}
+        {% if not is_single_week %}
+          <span class="badge bg-light text-dark border ms-1">{{ entry.year }}年第{{ entry.week }}週</span>
+        {% endif %}
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <div class="small text-muted">本週已執行</div>
+          {% for i in entry.last_week %}<div>• {{ i.content }}</div>{% endfor %}
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">下週計劃</div>
+          {% for i in entry.this_week %}<div>• {{ i.content }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-muted">{% if is_single_week %}本週{% else %}此區間內{% endif %}尚無工程師處理此專案</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if not selected_project %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if is_single_week %}
+        本週全部預覽 - {{ year_start }}年第{{ week_start }}週（{{ format_week_range(year_start, week_start) }}）
+      {% else %}
+        區間全部預覽 - {{ year_start }}年第{{ week_start }}週 ～ {{ year_end }}年第{{ week_end }}週
+      {% endif %}
+    </h6>
+    {% if preview_rows %}
+      {% for row in preview_rows %}
+      <div class="border rounded p-3 mb-2">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div>
+            <span class="badge bg-{{ row.project.color or 'primary' }} fs-6">{{ row.project.code }}</span>
+            <span class="fw-bold ms-1">{{ row.project.full_name }}</span>
+          </div>
+          <div class="text-muted small">涉入人數：{{ row.engineer_count }}</div>
+        </div>
+        {% for entry in row.entries %}
+        <div class="ps-2 mb-2 {% if not loop.last %}border-bottom pb-2{% endif %}">
+          <div class="fw-bold small mb-1">
+            <i class="fa-solid fa-user me-1"></i>{{ entry.engineer.name }}
+            {% if row.project.owner_engineer_id == entry.engineer.id %}
+              <span class="badge bg-warning text-dark">主要負責窗口</span>
+            {% endif %}
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="small text-muted">本週已執行</div>
+              {% for i in entry.last_week %}<div>• {{ i.content }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <div class="small text-muted">下週計劃</div>
+              {% for i in entry.this_week %}<div>• {{ i.content }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="text-muted">{% if is_single_week %}本週{% else %}此區間內{% endif %}尚無任何專案有進度紀錄</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

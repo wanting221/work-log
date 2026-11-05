@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}{{ period.label }} 考核表管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">{{ period.label }} 考核表管理</h4>
+  <a href="{{ url_for('review_admin.periods') }}" class="btn btn-sm btn-outline-secondary">返回考核期間列表</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body d-flex gap-2 flex-wrap">
+    {% if period.module == 'B' %}
+      {% if current_user.role in ('admin', 'hr_manager') %}
+      <form method="POST" action="{{ url_for('module_b_review.recalculate_rankings', period_id=period.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm">重新計算排名</button>
+      </form>
+      <a href="{{ url_for('module_b_review.rankings', period_id=period.id) }}" class="btn btn-outline-secondary btn-sm">查看排名</a>
+      {% endif %}
+    {% else %}
+      {% if current_user.role != 'hr_manager' %}
+      <form method="POST" action="{{ url_for('review_admin.recalculate', period_id=period.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm">重新計算排名</button>
+      </form>
+      <a href="{{ url_for('review_admin.rankings', period_id=period.id) }}" class="btn btn-outline-secondary btn-sm">查看排名</a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>員工</th><th>部門</th><th>狀態</th><th>直屬主管</th><th>最高直屬主管</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for form in forms %}
+        <tr>
+          <td>{{ form.engineer.name }}（{{ form.engineer.emp_id }}）</td>
+          <td>{{ form.engineer.department or '-' }}</td>
+          <td>
+            {% if form.status == 'draft' %}<span class="badge bg-secondary">草稿中</span>
+            {% elif form.status == 'submitted' %}<span class="badge bg-info text-dark">已送出</span>
+            {% elif form.status == 'scored' %}<span class="badge bg-success">已評分</span>
+            {% else %}<span class="badge bg-success">已定案</span>{% endif %}
+          </td>
+          <td>{{ form.engineer.supervisor.name if form.engineer.supervisor else '-' }}</td>
+          <td>{{ form.engineer.top_supervisor.name if form.engineer.top_supervisor else '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">此期間尚無考核表，請先到「考核期間管理」頁面產生。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2">
+  直屬主管、最高直屬主管是在「人員帳號管理」頁面針對每位人員設定的固定欄位，不是每張考核表各自指定；
+  如需調整某人的評分/覆評歸屬，請到人員帳號管理頁面修改該員工的設定。
+</p>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}填寫原則{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-book-open me-2"></i>填寫原則</h4>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if display_is_department_specific %}
+        你目前看到的版本 <span class="badge bg-info text-dark ms-1">{{ viewer_department }} 部門專屬版本</span>
+      {% else %}
+        你目前看到的版本 <span class="badge bg-secondary ms-1">通用預設版本</span>
+      {% endif %}
+    </h6>
+    <div style="white-space: pre-wrap; line-height: 1.8;">{{ content }}</div>
+  </div>
+</div>
+
+{% if can_edit %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">編輯內容</h6>
+
+    {% if current_user.role == 'admin' %}
+    <div class="mb-3">
+      <label class="form-label small">選擇要編輯的版本</label>
+      <form method="GET" action="{{ url_for('guidelines.index') }}">
+        <select class="form-select" name="edit_department" onchange="this.form.submit()" style="max-width:320px;">
+          <option value="">通用預設版本（其他部門沒有專屬版本時，會顯示這個）</option>
+          {% for d in all_departments %}
+            <option value="{{ d }}" {% if edit_department == d %}selected{% endif %}>{{ d }} 部門專屬版本</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    {% else %}
+      {% if edit_department %}
+        <div class="small text-muted mb-2">你正在編輯：<strong>{{ edit_department }}</strong> 部門專屬版本，只有這個部門的人會看到這個內容。</div>
+      {% else %}
+        <div class="small text-danger mb-2">你的帳號尚未設定部門，請聯繫管理者設定部門後才能編輯專屬版本。</div>
+      {% endif %}
+    {% endif %}
+
+    {% if current_user.role == 'admin' or edit_department %}
+    <form method="POST" action="{{ url_for('guidelines.update') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if current_user.role == 'admin' %}
+        <input type="hidden" name="edit_department" value="{{ edit_department }}">
+      {% endif %}
+      <textarea class="form-control" name="content" rows="14" style="font-size:0.95rem;">{{ edit_content }}</textarea>
+      <button class="btn btn-primary mt-3" type="submit"><i class="fa-solid fa-floppy-disk me-1"></i>儲存</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

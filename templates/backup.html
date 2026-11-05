@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}資料庫備份{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-database me-2"></i>資料庫備份管理</h4>
+
+{% if backup_missing %}
+<div class="alert alert-danger d-flex align-items-center gap-2">
+  <i class="fa-solid fa-triangle-exclamation fs-5"></i>
+  <div>
+    <strong>本月自動備份尚未成功執行</strong>
+    <div class="small mt-1">
+      已經過了設定的備份日期（每月 {{ backup_day }} 號），但系統找不到本月成功的備份紀錄。
+      請點下方「立即匯出備份」手動備份一次，並檢查伺服器記錄確認自動備份失敗的原因。
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 1. 系統資料備份 -->
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">系統資料備份</h6>
+    <div class="small text-muted mb-3">
+      可將全部系統資料（帳號、員工、專案、週報內容、SMTP 設定等等）加密後匯出成一份備份檔（.enc）；
+      日後可上傳該加密備份檔還原。<strong class="text-danger">匯入會覆蓋目前全部資料，請務必先匯出備份。</strong>
+    </div>
+    <form method="POST" action="{{ url_for('audit.export_backup') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary" type="submit"><i class="fa-solid fa-download me-1"></i>立即匯出備份</button>
+    </form>
+  </div>
+</div>
+
+<!-- 2. 下載加密備份檔 + 自動備份設定 -->
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">下載加密備份檔（.enc）</h6>
+
+    <div class="border rounded p-3 mb-3">
+      <form method="POST" action="{{ url_for('audit.update_schedule') }}" id="schedule-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" name="auto_enabled" value="1" id="auto_enabled_check"
+                 {% if auto_enabled %}checked{% endif %} onchange="document.getElementById('schedule-form').submit()">
+          <label class="form-check-label fw-bold" for="auto_enabled_check">啟用自動備份功能</label>
+        </div>
+        <div class="small text-muted mb-2">
+          台灣時間每月你選擇的日期凌晨三時（03:00）自動進行一次加密備份。
+          可選 1～28 號（避免月底日期不存在的問題）。勾選或變更日期都會自動儲存並立即生效。
+          備份檔會加密存放於伺服器的 backups 資料夾；若當月備份失敗，本頁最上方會顯示提醒，請記得手動備份。
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <label class="form-label small mb-0">每月</label>
+          <select class="form-select form-select-sm" name="backup_day" style="width:80px;"
+                  onchange="document.getElementById('schedule-form').submit()">
+            {% for d in day_options %}
+              <option value="{{ d }}" {% if d == backup_day %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+          <label class="form-label small mb-0">號，凌晨 03:00（台灣時間）自動備份</label>
+        </div>
+        {% if last_success_at %}
+        <div class="small text-muted mt-2">
+          上次成功備份時間：{{ last_success_at[:19].replace('T', ' ') }}
+        </div>
+        {% endif %}
+      </form>
+    </div>
+
+    <div class="table-responsive">
+    <table class="table table-sm">
+      <thead><tr><th>檔名</th><th>類型</th><th>建立時間</th><th>大小</th><th>操作</th></tr></thead>
+      <tbody>
+      {% for b in backups %}
+        <tr>
+          <td>{{ b.filename }}</td>
+          <td><span class="badge bg-secondary">{{ b.type }}</span></td>
+          <td>{{ b.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>{{ (b.size / 1024) | round(1) }} KB</td>
+          <td>
+            <a href="{{ url_for('audit.download_backup', filename=b.filename) }}" class="btn btn-sm btn-outline-secondary">
+              <i class="fa-solid fa-download me-1"></i>下載
+            </a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-muted">尚無備份檔案</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- 3. 匯入還原 -->
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">選擇加密備份檔（.enc）並匯入還原</h6>
+    <div class="small text-danger mb-3">
+      <i class="fa-solid fa-triangle-exclamation me-1"></i>
+      這個操作會<strong>清空目前系統裡全部的資料</strong>（帳號、專案、週報等等），換成備份檔裡的內容，無法復原。
+      執行前請確認已經匯出過目前資料的備份。
+    </div>
+    <form method="POST" action="{{ url_for('audit.restore_backup') }}" enctype="multipart/form-data"
+          class="d-flex gap-2 flex-wrap"
+          onsubmit="return confirm('確定要還原這份備份檔嗎？目前系統裡的所有資料都會被清空並換成備份檔的內容，此操作無法復原。')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="file" class="form-control" name="file" accept=".enc" required style="max-width:400px">
+      <button class="btn btn-outline-danger" type="submit"><i class="fa-solid fa-upload me-1"></i>匯入還原</button>
+    </form>
+  </div>
+</div>
+
+<!-- 危險區域：資料庫 RESET -->
+<div class="card mt-4 border-danger">
+  <div class="card-body">
+    <h6 class="card-title text-danger"><i class="fa-solid fa-radiation me-1"></i>危險區域 - 資料庫 RESET</h6>
+    <div class="small mb-3">
+      這個功能會<strong class="text-danger">清空整個系統資料庫</strong>，包含所有帳號（管理者自己的帳號也不例外）、
+      專案、週報內容、留言、操作紀錄、SMTP 與備份排程設定等，回到「全新安裝」的初始狀態
+      （只會留下一個預設管理者帳號 <code>A171</code> / <code>admin123</code>）。
+      <strong class="text-danger">此操作無法復原，執行後會立即登出。</strong>
+      強烈建議先用上方「立即匯出備份」保留一份目前資料的備份，確認真的需要重來一次再繼續。
+    </div>
+    <form method="POST" action="{{ url_for('audit.reset_database') }}" id="reset-db-form"
+          onsubmit="return confirm('真的確定要清空整個系統資料庫嗎？\n\n這會刪除所有帳號、專案、週報、留言與設定，只留下預設管理者帳號，且無法復原。\n\n請再次確認你已經完成備份。')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label small">
+            請輸入「<strong>{{ reset_confirmation_phrase }}</strong>」以確認
+          </label>
+          <input type="text" class="form-control" name="confirm_phrase" id="reset-confirm-phrase"
+                 autocomplete="off" placeholder="{{ reset_confirmation_phrase }}"
+                 oninput="document.getElementById('reset-submit-btn').disabled = (this.value !== '{{ reset_confirmation_phrase }}')">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">請輸入你自己的登入密碼以確認身份</label>
+          <input type="password" class="form-control" name="confirm_password" required autocomplete="current-password">
+        </div>
+        <div class="col-md-4">
+          <button type="submit" class="btn btn-danger w-100" id="reset-submit-btn" disabled>
+            <i class="fa-solid fa-radiation me-1"></i>清空資料庫（RESET）
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

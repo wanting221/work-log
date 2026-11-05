@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}{{ company_short_name }}員工入口網站{% endblock %}
+
+{% macro portal_body() %}
+<div class="portal-page">
+  <div class="container" style="max-width: 900px;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <div class="text-center mb-5">
+      <div class="portal-header-icon mb-3">
+        <i class="fa-solid fa-building"></i>
+      </div>
+      <h3 class="mb-1">{{ company_short_name }}員工入口網站</h3>
+      <div class="text-muted">{{ (company_name_en ~ ' Employee Portal')|trim }}</div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-4">
+        <a href="{{ url_for('auth.login') }}" class="portal-system-card">
+          <div class="portal-system-icon">
+            <i class="fa-solid fa-clipboard-list"></i>
+          </div>
+          <h6 class="mb-1">{{ company_name }}週報系統</h6>
+          <div class="text-muted small">{{ (company_name_en ~ ' Weekly Report Portal')|trim }}</div>
+        </a>
+      </div>
+
+      {% if portal_show_other_systems and portal_punch_url %}
+      <div class="col-md-6 col-lg-4">
+        <a href="{{ portal_punch_url }}" class="portal-system-card">
+          <div class="portal-system-icon">
+            <i class="fa-solid fa-clock"></i>
+          </div>
+          <h6 class="mb-1">上下班打卡系統</h6>
+          <div class="text-muted small">Clock In / Clock Out</div>
+        </a>
+      </div>
+      {% endif %}
+
+      {% if portal_show_other_systems %}
+      <div class="col-md-6 col-lg-4">
+        <div class="portal-system-card portal-system-disabled">
+          <div class="portal-system-icon">
+            <i class="fa-solid fa-calendar-days"></i>
+          </div>
+          <h6 class="mb-1">請假系統</h6>
+          <div class="text-muted small mb-2">Leave Management</div>
+          <span class="portal-coming-soon-badge">即將推出</span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% block content %}{{ portal_body() }}{% endblock %}
+{% block guest_content %}{{ portal_body() }}{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}待評分（模組B）{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-clipboard-check me-2"></i>待評分的考核表（模組B）</h4>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>考核期間</th><th>員工</th><th>部門</th><th>狀態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for form in forms %}
+        <tr>
+          <td>{{ form.period.label }}</td>
+          <td>{{ form.engineer.name }}（{{ form.engineer.emp_id }}）</td>
+          <td>{{ form.engineer.department or '-' }}</td>
+          <td>
+            {% if form.status == 'submitted' %}
+              <span class="badge bg-info text-dark">待評分</span>
+            {% elif form.status == 'scored' %}
+              <span class="badge bg-success">已評分{% if form.engineer.top_supervisor_id and form.engineer.supervisor_id %}，待覆評{% endif %}</span>
+            {% else %}
+              <span class="badge bg-dark">已定案</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('module_b_review.score_form', form_id=form.id) }}" class="btn btn-sm btn-outline-primary">
+              {{ '評分' if form.status == 'submitted' else '查看/修改評分' }}
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">目前沒有需要評分的考核表。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if executive_forms %}
+<h4 class="mb-3 mt-4"><i class="fa-solid fa-user-check me-2"></i>待覆評的考核表（模組B）</h4>
+<p class="text-muted small">以下是「最高直屬主管」欄位指定為您的人員，直屬主管已完成第一階段評分，需要您也覆評一次。</p>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr><th>考核期間</th><th>員工</th><th>部門</th><th>狀態</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for form in executive_forms %}
+        <tr>
+          <td>{{ form.period.label }}</td>
+          <td>{{ form.engineer.name }}（{{ form.engineer.emp_id }}）</td>
+          <td>{{ form.engineer.department or '-' }}</td>
+          <td>
+            {% if form.status == 'scored' %}
+              <span class="badge bg-info text-dark">待覆評</span>
+            {% else %}
+              <span class="badge bg-dark">已定案</span>
+            {% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('module_b_review.executive_score_form', form_id=form.id) }}" class="btn btn-sm btn-outline-primary">
+              {{ '覆評' if form.status == 'scored' else '查看/修改覆評' }}
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

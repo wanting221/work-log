@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}週報管理{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-file-export me-2"></i>週報管理</h4>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'tracking' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-tracking" type="button">
+      <i class="fa-solid fa-triangle-exclamation me-1"></i>未填寫追蹤
+    </button>
+  </li>
+  {% if current_user.role != 'group_manager' %}
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'export' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-export" type="button">
+      <i class="fa-solid fa-file-export me-1"></i>匯出報表
+    </button>
+  </li>
+  {% endif %}
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade {% if active_tab == 'tracking' %}show active{% endif %}" id="tab-tracking">
+
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <form class="d-flex gap-2" method="GET">
+    <input type="hidden" name="tab" value="tracking">
+    <input type="number" class="form-control form-control-sm" name="year" value="{{ year }}" style="width:100px">
+    <input type="number" class="form-control form-control-sm" name="week" value="{{ week }}" style="width:90px">
+    <button class="btn btn-sm btn-outline-primary">查詢</button>
+  </form>
+</div>
+<div class="text-muted mb-3">{{ year }} 年 第 {{ week }} 週（{{ format_week_range(year, week) }}）｜應填 {{ summary.total }} 人，已填 {{ summary.submitted_count }} 人，未填 {{ summary.not_submitted_count }} 人</div>
+
+<div class="card">
+  <div class="card-body">
+    {% if tracking_started %}
+    <div class="d-flex justify-content-between mb-3">
+      <h6 class="card-title mb-0">未填寫名單</h6>
+      {% if current_user.role in ('admin', 'dept_manager', 'group_manager') and summary.not_submitted %}
+      <button class="btn btn-sm btn-danger" onclick="remindAll()">
+        <i class="fa-solid fa-bell me-1"></i>一鍵提醒全部
+      </button>
+      {% endif %}
+    </div>
+    <table class="table table-hover">
+      <thead><tr><th>工號</th><th>姓名</th><th>組別</th><th>Email</th>{% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for e in summary.not_submitted %}
+        <tr id="row_{{ e.id }}">
+          <td>{{ e.emp_id }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ e.group.name if e.group else '-' }}</td>
+          <td>{{ e.email }}</td>
+          {% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}
+          <td>
+            <button class="btn btn-sm btn-outline-warning" onclick="remindOne({{ e.id }})">
+              <i class="fa-solid fa-bell"></i> 提醒
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-success">所有工程師皆已完成填寫 🎉</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <h6 class="card-title">未填寫名單</h6>
+    <div class="text-center text-muted py-4 mt-2">
+      <i class="fa-solid fa-clock fa-lg mb-2 d-block"></i>
+      現在還在正常填寫期間內，暫不顯示未填寫名單。
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+</div>
+
+{% if current_user.role != 'group_manager' %}
+<div class="tab-pane fade {% if active_tab == 'export' %}show active{% endif %}" id="tab-export">
+
+<div class="row g-3">
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依員工匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_engineer') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ year }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ week }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-1">{{ format_week_range(year, week) }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">組別（選填）</label>
+              <select class="form-select" name="group_id">
+                <option value="">全部組別</option>
+                {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依專案/客戶匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_project') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ year }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ week }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-2">{{ format_week_range(year, week) }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">部門（選填）</label>
+              {% if current_user.role == 'dept_manager' %}
+                <input type="text" class="form-control" value="{{ current_user.department or '（未設定部門）' }}" disabled>
+              {% else %}
+                <select class="form-select" name="department">
+                  <option value="">全部部門</option>
+                  {% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+                </select>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">批次匯入歷史週報資料</h6>
+    <div class="small text-muted mb-2">
+      Excel 欄位須依序為：部門｜組別｜人員｜已執行工作精要｜客戶/專案代號｜計劃工作重點。供系統上線初期補歷史資料使用。
+      若「員工」欄位的姓名在系統裡還沒有帳號，會自動建立一個新帳號（預設密碼 <code>{{ default_new_password }}</code>，
+      工號暫用 <code>TEMP</code> 開頭的編號），匯入後請到「人員帳號管理」頁面補上正確的工號與 Email。
+    </div>
+    <form method="POST" action="{{ url_for('export.import_excel') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small">對應年度</label>
+          <input type="number" class="form-control" name="import_year" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">對應週次</label>
+          <input type="number" class="form-control" name="import_week" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Excel 檔案</label>
+          <input type="file" class="form-control" name="file" accept=".xlsx" required>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-primary w-100" type="submit">匯入</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+</div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+function remindOne(id) {
+  fetch(`/tracking/remind/${id}`, {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+function remindAll() {
+  if (!confirm('確定要對所有未填寫工程師發送提醒信嗎？')) return;
+  fetch('/tracking/remind_all', {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+
+// 依 ISO 8601 週次規則計算該週的起訖日期 (星期一~星期日)，供年度/週次輸入框即時顯示用
+function isoWeekRange(year, week) {
+  var jan4 = new Date(Date.UTC(year, 0, 4));
+  var dayOfWeek = jan4.getUTCDay() || 7;
+  var monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7);
+  var sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  function fmt(d) {
+    return d.getUTCFullYear() + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  return fmt(monday) + ' - ' + fmt(sunday);
+}
+
+function updateRangeDisplay(targetId) {
+  var target = document.getElementById(targetId);
+  if (!target) return;
+  var yearInput = document.querySelector(`.week-year-input[data-range-target="${targetId}"]`);
+  var weekInput = document.querySelector(`.week-week-input[data-range-target="${targetId}"]`);
+  var year = parseInt(yearInput.value, 10);
+  var week = parseInt(weekInput.value, 10);
+  if (!year || !week || week < 1 || week > 53) return;
+  target.textContent = isoWeekRange(year, week);
+}
+
+document.querySelectorAll('.week-year-input, .week-week-input').forEach(function (input) {
+  input.addEventListener('input', function () {
+    updateRangeDisplay(this.dataset.rangeTarget);
+  });
+});
+</script>
+{% endblock %}

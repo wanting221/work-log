@@ -1,0 +1,72 @@
+{% macro nav_item(endpoint, icon, label, extra_class='') %}
+<a class="sidebar-link {{ extra_class }} {% if request.endpoint == endpoint %}active{% endif %}" href="{{ url_for(endpoint) }}">
+  <i class="fa-solid {{ icon }} sidebar-link-icon"></i>{{ label }}
+</a>
+{% endmacro %}
+
+<div class="sidebar-brand">
+  <div class="sidebar-brand-title"><i class="fa-solid fa-clipboard-list"></i>週報系統</div>
+  <div class="sidebar-brand-sub">{{ brand_line }}</div>
+</div>
+
+<div class="flex-grow-1 overflow-auto sidebar-nav">
+  {% if current_user.role != 'engineer' %}
+    {{ nav_item('dashboard.index', 'fa-gauge-high', '管理總覽') }}
+  {% endif %}
+  {% if current_user.role in ('admin', 'hr_manager', 'dept_manager') %}
+    {{ nav_item('admin_engineer.index', 'fa-users-gear', '人員管理') }}
+  {% endif %}
+  {% if current_user.role in ('admin', 'viewer') or (current_user.role in ('dept_manager', 'group_manager') and current_user.weekly_report_enabled) %}
+    {{ nav_item('reports_view.index', 'fa-magnifying-glass', '週報檢視') }}
+  {% endif %}
+  {% if current_user.role in ('dept_manager', 'group_manager') and current_user.diary_enabled %}
+    {{ nav_item('diary_view.index', 'fa-book-journal-whills', '日誌檢視') }}
+  {% endif %}
+  {% if current_user.role in ('engineer', 'dept_manager', 'group_manager') and current_user.weekly_report_enabled %}
+    {{ nav_item('report.fill', 'fa-pen-to-square', '填寫週報') }}
+  {% endif %}
+  {% if current_user.role in ('admin', 'hr_manager') %}
+    {{ nav_item('review_admin.periods', 'fa-calendar-days', '考核期間管理') }}
+    {% if has_module_a_period %}
+      {{ nav_item('review_admin.criteria', 'fa-list-check', '考核項目管理') }}
+    {% endif %}
+    {% if has_module_b_period %}
+      {{ nav_item('module_b_admin.indicators', 'fa-database', '部門硬指標庫 (開發中)', extra_class='sidebar-link-dev') }}
+    {% endif %}
+  {% endif %}
+  {% if current_user.role in ('engineer', 'dept_manager', 'group_manager') %}
+    {% if current_user.diary_enabled %}
+      {{ nav_item('diary.index', 'fa-book-journal-whills', '填寫日誌') }}
+    {% endif %}
+  {% endif %}
+  {% if current_user.role in ('engineer', 'dept_manager', 'group_manager', 'hr_manager') %}
+    {{ nav_item('review_self.dashboard', 'fa-file-signature', '我的考核表 (開發中)', extra_class='sidebar-link-dev') }}
+  {% endif %}
+  {% if current_user.role != 'admin' and (has_pending_scoring or has_pending_executive_review) %}
+    {{ nav_item('review_scoring.dashboard', 'fa-clipboard-check', '考核表待評分 (開發中)', extra_class='sidebar-link-dev') }}
+  {% endif %}
+  {% if current_user.role == 'admin' %}
+    {{ nav_item('email_settings.index', 'fa-envelope-open-text', '設定提醒') }}
+    {{ nav_item('audit.index', 'fa-list-check', '操作紀錄') }}
+    {{ nav_item('audit.backup_index', 'fa-database', '資料庫備份') }}
+  {% endif %}
+</div>
+
+<div class="sidebar-footer">
+  {% if current_user.role == 'admin' %}
+  <a href="{{ url_for('dashboard.index') }}" class="db-status-badge db-status-{{ db_info.risk_level }}" title="點擊查看詳細說明">
+    <i class="fa-solid {% if db_info.is_sqlite %}fa-triangle-exclamation{% else %}fa-circle-check{% endif %} me-1"></i>
+    資料庫：{% if db_info.is_sqlite %}{{ db_info.display_label }}{% else %}{{ db_info.short_label }}{% endif %}
+  </a>
+  {% endif %}
+  <div class="sidebar-user">
+    <i class="fa-solid fa-circle-user"></i>
+    <span class="sidebar-user-name">{{ current_user.name }}</span>
+    <span class="sidebar-role-badge sidebar-role-{{ current_user.role }}">
+      {{ {'admin': '管理者', 'engineer': '人員', 'viewer': '唯讀', 'dept_manager': '部門主管', 'group_manager': '組別主管', 'hr_manager': '人資主管'}[current_user.role] }}
+    </span>
+  </div>
+  <a href="{{ url_for('auth.logout') }}" class="btn btn-sidebar-logout w-100">
+    <i class="fa-solid fa-right-from-bracket me-1"></i>登出
+  </a>
+</div>

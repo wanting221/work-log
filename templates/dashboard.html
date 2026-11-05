@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block title %}管理總覽{% endblock %}
+{% block content %}
+{% if current_user.role == 'admin' %}
+<div class="alert alert-{{ 'danger' if db_info.is_sqlite else 'success' }} mb-3">
+  <div class="d-flex align-items-center gap-2">
+    <i class="fa-solid {% if db_info.is_sqlite %}fa-triangle-exclamation{% else %}fa-circle-check{% endif %} fs-5"></i>
+    <div>
+      {% if db_info.is_sqlite %}
+      <strong>目前資料庫：{{ db_info.display_label }}</strong>
+    {% else %}
+      <strong>資料庫：{{ db_info.short_label }}</strong>
+    {% endif %}
+    {% if db_info.is_sqlite %}
+        <div class="small mt-1">
+          雲端容器環境（如 Cloud Run）重新部署或重啟時，SQLite 檔案資料庫會被清空，所有資料都會消失！
+          如果這是正式使用中的系統，請盡快遷移到 Cloud SQL（可參考 README 的部署說明章節）。
+        </div>
+      {% endif %}
+    </div>
+  </div>
+  {% if db_info.is_sqlite %}
+  <hr class="my-2">
+  <div class="small">
+    <strong>診斷資訊</strong>（幫你確認是哪個環節沒接上）：
+    {% if startup_diagnostics.env_var_present %}
+      <div class="mt-1">
+        容器實際讀到的 <code>DATABASE_URL</code>：<code>{{ startup_diagnostics.env_var_masked }}</code>
+      </div>
+      <div class="mt-1 text-muted">
+        這個值本身還是指向 SQLite——請檢查 Cloud Run 服務設定的環境變數值是否正確（格式、拼字），
+        以及有沒有存在但沒被讀到的可能（例如設定在了沒有實際服務流量的舊修訂版本上）。
+      </div>
+    {% elif startup_diagnostics.using_separate_vars %}
+      <div class="mt-1 text-muted">
+        偵測到部分「拆開的資料庫環境變數」，但還缺少以下必要變數，五個都要設定齊全才會生效：
+      </div>
+      <ul class="small mb-0">
+        {% for name in startup_diagnostics.missing_separate_vars %}
+          <li><code>{{ name }}</code></li>
+        {% endfor %}
+      </ul>
+      <div class="mt-1 text-muted">
+        已經有的變數：{{ startup_diagnostics.present_separate_vars | join('、') }}
+      </div>
+    {% else %}
+      <div class="mt-1 text-muted">
+        容器裡完全沒有 <code>DATABASE_URL</code>，也沒有拆開的資料庫環境變數
+        （<code>DB_ENGINE</code> / <code>DB_USER</code> / <code>DB_PASSWORD</code> / <code>DB_NAME</code> / <code>INSTANCE_CONNECTION_NAME</code>）。
+        最常見的原因：
+      </div>
+      <ul class="small mb-0">
+        <li>環境變數設定在 Cloud Run 的某個修訂版本上，但目前服務流量沒有 100% 導向那個版本
+          （Cloud Run 主控台 → 你的服務 →「管理流量」確認）</li>
+        <li>設定環境變數後沒有真的部署新的修訂版本（改環境變數本身就會建立新修訂版本，
+          但如果是在 Cloud Build 的 YAML／cloudbuild.yaml 裡設定，需要重新觸發建置才會生效）</li>
+        <li>環境變數名稱打錯字（區分大小寫）</li>
+      </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">
+    <i class="fa-solid fa-gauge-high me-2"></i>管理總覽
+    {% if is_diary_mode %}<span class="badge bg-info text-dark ms-1">日誌統計</span>{% endif %}
+  </h4>
+  {% if summary is not none %}
+  <form class="d-flex gap-2" method="GET">
+    <input type="number" class="form-control form-control-sm" name="year" value="{{ year }}" style="width:100px">
+    <input type="number" class="form-control form-control-sm" name="week" value="{{ week }}" style="width:90px">
+    <button class="btn btn-sm btn-outline-primary">查詢</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if summary is not none %}
+<div class="text-muted mb-3">{{ year }} 年 第 {{ week }} 週（{{ format_week_range(year, week) }}）</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3 col-6">
+    <div class="stat-card bg-gradient-blue">
+      <div class="small">應填寫人數</div>
+      <div class="stat-value">{{ summary.total }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card bg-gradient-green">
+      <div class="small">已填寫人數</div>
+      <div class="stat-value">{{ summary.submitted_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card bg-gradient-red">
+      <div class="small">未填寫人數</div>
+      <div class="stat-value">{{ summary.not_submitted_count }}</div>
+    </div>
+  </div>
+  <div class="col-md-3 col-6">
+    <div class="stat-card bg-gradient-purple">
+      <div class="small">整體完成率</div>
+      <div class="stat-value">{{ ((summary.submitted_count / summary.total * 100) if summary.total else 0) | round(1) }}%</div>
+    </div>
+  </div>
+</div>
+
+{% if summary.not_submitted %}
+<div class="card mb-4">
+  <div class="card-body">
+    <h6 class="card-title text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>未填寫名單</h6>
+    {% for eng in summary.not_submitted %}
+      <span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle me-1 mb-1">{{ eng.name }}</span>
+    {% endfor %}
+    {% if is_diary_mode %}
+    <a href="{{ url_for('diary_view.index', tab='employee') }}" class="btn btn-sm btn-outline-danger ms-2">前往未填寫追蹤</a>
+    {% else %}
+    <a href="{{ url_for('reports_view.index', tab='employee') }}" class="btn btn-sm btn-outline-danger ms-2">前往未填寫追蹤</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if review_periods is not none %}
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <h6 class="card-title mb-0"><i class="fa-solid fa-calendar-days me-1"></i>考核期間</h6>
+      <a href="{{ url_for('review_admin.periods') }}" class="btn btn-sm btn-outline-secondary">前往管理</a>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>期間</th><th>狀態</th><th>考核區間</th></tr></thead>
+      <tbody>
+      {% for period in review_periods %}
+        <tr>
+          <td>{{ period.label }}</td>
+          <td>
+            {% if period.is_open %}<span class="badge bg-success">開放中</span>
+            {% else %}<span class="badge bg-secondary">已關閉</span>{% endif %}
+          </td>
+          <td>{{ period.start_date }} ~ {{ period.end_date }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" class="text-center text-muted py-3">尚未建立考核期間。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if summary is not none %}
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title"><i class="fa-solid fa-users me-1"></i>各組別填寫完成率</h6>
+        <table class="table table-sm">
+          <thead><tr><th>組別</th><th>人數</th><th>已填</th><th>完成率</th></tr></thead>
+          <tbody>
+          {% for gs in group_stats %}
+            <tr>
+              <td>{{ gs.group.name }}</td>
+              <td>{{ gs.total }}</td>
+              <td>{{ gs.submitted }}</td>
+              <td>
+                <div class="progress" style="height:18px;">
+                  <div class="progress-bar {% if gs.rate == 100 %}bg-success{% elif gs.rate >= 50 %}bg-info{% else %}bg-warning{% endif %}"
+                       style="width: {{ gs.rate }}%">{{ gs.rate }}%</div>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="card-title"><i class="fa-solid fa-fire me-1"></i>本週涉入專案數量排行</h6>
+        <table class="table table-sm">
+          <thead><tr><th>#</th><th>專案代號</th><th>全名</th><th>涉入人數</th></tr></thead>
+          <tbody>
+          {% for p in project_ranking %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><span class="badge bg-{{ p.project.color or 'primary' }}">{{ p.project.code }}</span></td>
+              <td>{{ p.project.full_name }}</td>
+              <td>{{ p.engineer_count }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="text-muted text-center">本週尚無資料</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not is_diary_mode %}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title text-danger"><i class="fa-solid fa-bell me-1"></i>卡關風險提醒（連續多週含「待回覆／待安排／待確認」等關鍵字未更新）</h6>
+    {% if risky_items %}
+    <table class="table table-sm">
+      <thead><tr><th>工程師</th><th>專案</th><th>內容</th><th>已持續週數</th></tr></thead>
+      <tbody>
+      {% for r in risky_items %}
+        <tr>
+          <td>{{ r.engineer.name if r.engineer else '-' }}</td>
+          <td>{{ r.project.code if r.project else '-' }}</td>
+          <td>{{ r.item.content }}</td>
+          <td><span class="risk-badge">{{ r.weeks_count }} 週</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-muted">目前沒有卡關風險項目</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}我的客戶/專案{% endblock %}
+{% block content %}
+<h4 class="mb-2"><i class="fa-solid fa-address-book me-2"></i>我的客戶/專案</h4>
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:36px;"></th>
+          <th style="width:16%;">專案名稱</th>
+          <th style="width:12%;">起始日期</th>
+          <th style="width:36%;">進度更新</th>
+          <th style="width:36%;">後續更新</th>
+        </tr>
+      </thead>
+      <tbody id="project-sortable-body">
+        {% for row in rows %}
+        <tr data-id="{{ row.personal_project.id }}">
+          <form id="proj_form_{{ row.personal_project.id }}" method="POST" action="{{ url_for('personal_project.update', project_id=row.personal_project.id) }}"></form>
+          <input type="hidden" name="csrf_token" form="proj_form_{{ row.personal_project.id }}" value="{{ csrf_token() }}">
+          <td class="text-center drag-handle"><i class="fa-solid fa-grip-vertical"></i></td>
+          <td>
+            <span class="badge bg-{{ row.project.color or 'primary' }}">{{ row.project.code }}</span>
+            <div class="small text-muted">{{ row.project.full_name }}</div>
+          </td>
+          <td><input type="date" class="form-control form-control-sm" name="start_date" form="proj_form_{{ row.personal_project.id }}" value="{{ row.personal_project.start_date or '' }}"></td>
+          <td>
+            <div class="small" style="white-space: pre-wrap;">{{ row.progress_text }}</div>
+          </td>
+          <td><textarea class="form-control form-control-sm" name="followup_update" form="proj_form_{{ row.personal_project.id }}" rows="3">{{ row.personal_project.followup_update or '' }}</textarea></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">最近 {{ weeks_lookback }} 週還沒有紀錄任何專案。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+// 自動儲存：起始日期變更時立即觸發；後續更新則在失焦時觸發，用 AJAX
+// 把該列整個表單送出，不用手動按儲存按鈕
+document.querySelectorAll('[form^="proj_form_"]').forEach(function (field) {
+  const eventName = (field.type === 'date') ? 'change' : 'blur';
+  field.addEventListener(eventName, function () {
+    const formId = field.getAttribute('form');
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const formData = new FormData(form);
+    fetch(form.action, {
+      method: 'POST',
+      body: formData,
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        field.classList.remove('autosave-success', 'autosave-error');
+        void field.offsetWidth;
+        field.classList.add(data.success ? 'autosave-success' : 'autosave-error');
+        setTimeout(function () {
+          field.classList.remove('autosave-success', 'autosave-error');
+        }, 1500);
+      })
+      .catch(function () {
+        alert('儲存失敗，請檢查網路連線');
+      });
+  });
+});
+
+// 拖曳排序
+const projectSortBody = document.getElementById('project-sortable-body');
+if (projectSortBody) {
+  new Sortable(projectSortBody, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function () {
+      const orderedIds = Array.from(projectSortBody.querySelectorAll('tr[data-id]')).map(tr => parseInt(tr.dataset.id));
+      fetch('{{ url_for("personal_project.reorder") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+        body: JSON.stringify({ordered_ids: orderedIds})
+      }).then(r => r.json()).then(res => {
+        if (!res.success) alert(res.message || '排序儲存失敗');
+      }).catch(() => alert('排序儲存失敗，請檢查網路連線'));
+    }
+  });
+}
+</script>
+{% endblock %}

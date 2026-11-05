@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}操作紀錄{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-list-check me-2"></i>操作紀錄 (Audit Log)</h4>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="card-title">區間清除</h6>
+    <div class="small text-muted mb-2">選擇日期區間，清除該區間內（含頭尾兩天）的操作紀錄，此操作無法復原。</div>
+    <form method="POST" action="{{ url_for('audit.clear_range') }}" class="row g-2 align-items-end"
+          onsubmit="return confirm('確定要清除所選區間內的操作紀錄嗎？此操作無法復原。')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-auto">
+        <label class="form-label small">開始日期</label>
+        <input type="date" class="form-control form-control-sm" name="start_date" required>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small">結束日期</label>
+        <input type="date" class="form-control form-control-sm" name="end_date" required>
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-outline-danger btn-sm" type="submit">
+          <i class="fa-solid fa-trash-can me-1"></i>清除區間內紀錄
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <table class="table table-sm">
+      <thead><tr><th>時間</th><th>使用者</th><th>動作</th><th>對象</th><th>詳情</th><th>IP</th></tr></thead>
+      <tbody>
+      {% for log in pagination.items %}
+        <tr>
+          <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td>{{ log.user_name }}</td>
+          <td><span class="badge bg-secondary">{{ log.action }}</span></td>
+          <td>{{ log.target_type }}{% if log.target_id %} #{{ log.target_id }}{% endif %}</td>
+          <td>{{ log.detail }}</td>
+          <td class="text-muted small">{{ log.ip_address }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-center text-muted">尚無紀錄</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    <nav>
+      <ul class="pagination pagination-sm">
+        {% if pagination.has_prev %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('audit.index', page=pagination.prev_num) }}">上一頁</a></li>
+        {% endif %}
+        <li class="page-item disabled"><span class="page-link">第 {{ pagination.page }} / {{ pagination.pages }} 頁</span></li>
+        {% if pagination.has_next %}
+        <li class="page-item"><a class="page-link" href="{{ url_for('audit.index', page=pagination.next_num) }}">下一頁</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+</div>
+{% endblock %}

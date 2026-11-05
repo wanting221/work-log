@@ -1,0 +1,338 @@
+{% extends 'base.html' %}
+{% block title %}考核期間管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-calendar-days me-2"></i>考核期間管理</h4>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('review_admin.periods_export') }}" class="btn btn-outline-success btn-sm">
+      <i class="fa-solid fa-file-export me-1"></i>匯出 Excel
+    </a>
+    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#importPeriodsModal">
+      <i class="fa-solid fa-file-import me-1"></i>匯入 Excel
+    </button>
+    <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#createPeriodModal">
+      <i class="fa-solid fa-plus me-1"></i>建立新的考核期間
+    </button>
+  </div>
+</div>
+
+<!-- 匯入考核期間 Excel -->
+<div class="modal fade" id="importPeriodsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('review_admin.periods_import') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">匯入考核期間 Excel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">
+            依「民國年＋季別」比對：已存在的期間會更新資料，不存在的組合會新建期間。
+            建議先用「匯出 Excel」下載現有資料當範本再修改。
+          </p>
+          <input type="file" name="excel_file" accept=".xlsx" class="form-control" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">開始匯入</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div class="table-responsive table-responsive-dropdown-safe">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>期間</th><th>模組</th><th>自評截止</th><th>狀態</th><th>考核區間</th><th style="min-width:480px;">操作</th></tr></thead>
+      <tbody>
+      {% for period in periods %}
+      <tr>
+        <td>{{ period.label }}</td>
+        <td>
+          {% if period.module == 'B' %}
+            <span class="badge bg-purple" style="background-color:#6f42c1;">模組B</span>
+          {% else %}
+            <span class="badge bg-secondary">模組A</span>
+          {% endif %}
+        </td>
+        <td>{{ period.self_report_deadline or '無限制' }}</td>
+        <td>
+          {% if period.is_open %}<span class="badge bg-success">開放中</span>
+          {% else %}<span class="badge bg-secondary">已關閉</span>{% endif %}
+        </td>
+        <td>{{ period.start_date }} ~ {{ period.end_date }}</td>
+        <td>
+          <div class="d-flex gap-2 period-action-row">
+            <form method="POST" action="{{ url_for('review_admin.generate_forms', period_id=period.id) }}"
+                  onsubmit="return confirm('為此期間在職人員（員工/部門主管/組別主管）建立考核表，已存在的會略過，確定執行？')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-primary period-action-btn"
+                      data-bs-toggle="tooltip" data-bs-placement="top"
+                      title="{% if period.forms_generated_at %}最近執行：{{ period.forms_generated_at.strftime('%Y-%m-%d %H:%M') }}{% else %}尚未執行過{% endif %}">
+                <i class="fa-solid fa-file-circle-plus"></i>產生考核表
+              </button>
+            </form>
+            <a href="{{ url_for('review_admin.period_detail', period_id=period.id) }}" class="btn btn-sm btn-outline-primary period-action-btn">
+              <i class="fa-solid fa-folder-open"></i>管理考核表
+            </a>
+            {% if current_user.role != 'hr_manager' %}
+            <a href="{{ url_for('review_admin.rankings', period_id=period.id) }}" class="btn btn-sm btn-outline-primary period-action-btn">
+              <i class="fa-solid fa-ranking-star"></i>查看排名
+            </a>
+            {% endif %}
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false" title="操作">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <form method="POST" action="{{ url_for('review_admin.toggle_period_open', period_id=period.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if period.is_open %}
+                    <button class="dropdown-item" type="submit"><i class="fa-solid fa-lock me-2"></i>關閉期間</button>
+                    {% else %}
+                    <button class="dropdown-item" type="submit"><i class="fa-solid fa-lock-open me-2"></i>重新開放</button>
+                    {% endif %}
+                  </form>
+                </li>
+                <li>
+                  <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#editPeriodModal{{ period.id }}">
+                    <i class="fa-solid fa-pen me-2"></i>編輯
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deletePeriodModal{{ period.id }}">
+                    <i class="fa-solid fa-trash me-2"></i>刪除
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">尚未建立考核期間。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- 建立新的考核期間 -->
+<div class="modal fade" id="createPeriodModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" class="period-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">建立新的考核期間</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="small text-muted mb-2">
+            選好民國年跟季別，考核期間起訖日期會自動帶入標準日曆季（Q1 01/01~03/31、
+            Q2 04/01~06/30、Q3 07/01~09/30、Q4 10/01~12/31），也可以手動調整成非標準的日期。
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">民國年</label>
+            <input type="number" name="roc_year" class="form-control period-roc-year" value="{{ current_roc_year }}" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">季別</label>
+            <select name="quarter" class="form-select period-quarter" required>
+              <option value="1">第1季</option>
+              <option value="2">第2季</option>
+              <option value="3">第3季</option>
+              <option value="4">第4季</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">考核模組</label>
+            <select name="module" class="form-select">
+              <option value="A">模組A（固定考評項目：執行成效/工作態度/團隊精神/執行力）</option>
+              <option value="B">模組B（部門硬指標庫 + BARS 軟指標，各部門硬/軟權重不同）</option>
+            </select>
+            <div class="form-text">建立後不能再變更，請確認清楚後再送出。</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">考核期間起</label>
+            <input type="date" name="start_date" class="form-control period-start-date">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">考核期間迄</label>
+            <input type="date" name="end_date" class="form-control period-end-date">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">員工自評截止日（選填）</label>
+            <input type="date" name="self_report_deadline" class="form-control">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">建立</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% for period in periods %}
+<div class="modal fade" id="editPeriodModal{{ period.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('review_admin.update_period', period_id=period.id) }}" class="period-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">編輯考核期間 {{ period.label }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small">民國年</label>
+            <input type="number" name="roc_year" class="form-control period-roc-year" value="{{ period.roc_year }}" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">季別</label>
+            <select name="quarter" class="form-select period-quarter" required>
+              {% for q in [1, 2, 3, 4] %}
+              <option value="{{ q }}" {{ 'selected' if period.quarter == q }}>第{{ q }}季</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">考核期間起</label>
+            <input type="date" name="start_date" class="form-control period-start-date" value="{{ period.start_date }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">考核期間迄</label>
+            <input type="date" name="end_date" class="form-control period-end-date" value="{{ period.end_date }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">員工自評截止日（選填）</label>
+            <input type="date" name="self_report_deadline" class="form-control" value="{{ period.self_report_deadline or '' }}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- 刪除考核期間二次確認：需要輸入完整的期間標籤才能刪除，避免手滑誤刪 -->
+<div class="modal fade" id="deletePeriodModal{{ period.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('review_admin.delete_period', period_id=period.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i>刪除考核期間 {{ period.label }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-danger">
+            此操作無法復原！刪除後，這個期間底下<strong>所有人的考核表、評分、覆評、排名資料都會一併永久刪除</strong>。
+          </div>
+          <label class="form-label small">請輸入完整的期間標籤「<strong>{{ period.label }}</strong>」以確認刪除</label>
+          <input type="text" class="form-control" name="confirm_label" placeholder="{{ period.label }}" autocomplete="off" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-danger">確定永久刪除</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* 考核期間管理的操作按鈕：統一寬度、圖示+文字置中對齊，讓一整排按鈕
+     不會因為中文字數不同而長短不一，視覺上更整齊。 */
+  .period-action-row {
+    flex-wrap: wrap;
+  }
+  .period-action-btn {
+    width: 108px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .period-action-btn i {
+    font-size: 0.8em;
+    width: 1em;
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // 啟用「產生考核表」按鈕上的最近執行時間提示（Bootstrap tooltip 預設不會自動啟用，需要手動初始化）
+  document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function (el) {
+    new bootstrap.Tooltip(el);
+  });
+
+  // 「操作」欄的三個點選單（產生考核表/管理考核表/查看排名旁邊那個）展開時
+  // 會被表格外層的水平捲動容器（.table-responsive）裁切掉一部分，看不到
+  // 完整的選單內容。這是因為 Bootstrap 的 Dropdown 底層用 Popper.js 定位，
+  // 預設定位策略是 position: absolute，只要它所在的祖先元素有設定
+  // overflow（.table-responsive 為了讓寬表格能水平捲動，一定會設
+  // overflow-x: auto），選單即使位置算得再準，視覺上還是會被那個祖先元素
+  // 的邊界裁掉。真正的解法是把 Popper 的定位策略改成 position: fixed，
+  // 這樣選單會直接以瀏覽器視窗為定位基準，不再受任何祖先容器的 overflow
+  // 影響——Bootstrap 沒有對應的 data-bs-* 屬性可以直接在 HTML 上設定這個
+  // 選項，只能在 JavaScript 初始化時透過 popperConfig 指定，所以這裡手動
+  // 幫每個下拉選單重新初始化一次。
+  document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(function (el) {
+    bootstrap.Dropdown.getOrCreateInstance(el, {
+      popperConfig: function (defaultConfig) {
+        return Object.assign({}, defaultConfig, { strategy: 'fixed' });
+      },
+    });
+  });
+
+  // 標準日曆季對照表，跟後端 routes/review_admin.py 的 QUARTER_MONTH_RANGES 一致
+  const QUARTER_RANGES = {
+    '1': [[1, 1], [3, 31]],
+    '2': [[4, 1], [6, 30]],
+    '3': [[7, 1], [9, 30]],
+    '4': [[10, 1], [12, 31]],
+  };
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function autoFillDates(form) {
+    const rocYearInput = form.querySelector('.period-roc-year');
+    const quarterSelect = form.querySelector('.period-quarter');
+    const startInput = form.querySelector('.period-start-date');
+    const endInput = form.querySelector('.period-end-date');
+
+    const rocYear = parseInt(rocYearInput.value, 10);
+    const quarter = quarterSelect.value;
+    if (!rocYear || !QUARTER_RANGES[quarter]) return;
+
+    const adYear = rocYear + 1911;
+    const [[sm, sd], [em, ed]] = QUARTER_RANGES[quarter];
+    startInput.value = `${adYear}-${pad(sm)}-${pad(sd)}`;
+    endInput.value = `${adYear}-${pad(em)}-${pad(ed)}`;
+  }
+
+  document.querySelectorAll('.period-form').forEach(function (form) {
+    const rocYearInput = form.querySelector('.period-roc-year');
+    const quarterSelect = form.querySelector('.period-quarter');
+    rocYearInput.addEventListener('change', function () { autoFillDates(form); });
+    quarterSelect.addEventListener('change', function () { autoFillDates(form); });
+  });
+</script>
+{% endblock %}

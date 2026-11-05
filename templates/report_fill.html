@@ -1,0 +1,285 @@
+{% extends 'base.html' %}
+{% block title %}填寫週報{% endblock %}
+{% block extra_head %}
+<style>
+  .col-header { font-weight: 600; color: #495057; }
+  .project-select { max-width: 220px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">
+    <i class="fa-solid fa-pen-to-square me-2"></i>填寫週報
+    <a href="{{ url_for('guidelines.index') }}" class="badge bg-success text-white text-decoration-none ms-1">
+      <i class="fa-solid fa-book-open me-1"></i>填寫原則
+    </a>
+  </h4>
+  <form class="d-flex gap-2" method="GET">
+    <input type="number" class="form-control form-control-sm" name="year" value="{{ year }}" style="width:100px">
+    <input type="number" class="form-control form-control-sm" name="week" value="{{ week }}" style="width:90px">
+    <button class="btn btn-sm btn-outline-primary">切換週次</button>
+  </form>
+</div>
+<div class="text-muted mb-3">{{ year }} 年 第 {{ week }} 週（{{ report.report_date }} 起）｜狀態：
+  <span class="badge {% if report.status == '已送出' %}bg-success{% elif report.status == '草稿' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ report.status }}</span>
+</div>
+
+{% if report.locked %}
+<div class="locked-banner mb-3">
+  <i class="fa-solid fa-lock me-1"></i>此週報已送出並鎖定，如需修改請聯繫管理者解鎖。
+</div>
+{% endif %}
+
+{% if prev_carried_count %}
+<div class="alert alert-info mb-3">
+  <i class="fa-solid fa-circle-info me-1"></i>
+  已自動帶入上週「下週計劃工作重點」共 {{ prev_carried_count }} 筆到下方「本週已執行工作精要」，
+  已完成的項目可直接刪除，需要調整內容也可以直接編輯。
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="col-header mb-3"><i class="fa-solid fa-check-double me-1"></i>本週已執行工作精要</h6>
+        <div id="last_week_container"></div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addItem('last_week')">
+          <i class="fa-solid fa-plus me-1"></i>新增項目
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <h6 class="col-header mb-3"><i class="fa-solid fa-calendar-week me-1"></i>下週計劃工作重點</h6>
+        <div id="this_week_container"></div>
+        <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addItem('this_week')">
+          <i class="fa-solid fa-plus me-1"></i>新增項目
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mt-4">
+  <button class="btn btn-outline-secondary" onclick="saveReport(false)" {% if report.locked %}disabled{% endif %}>
+    <i class="fa-solid fa-floppy-disk me-1"></i>儲存草稿
+  </button>
+  <button class="btn btn-primary" onclick="saveReport(true)" {% if report.locked %}disabled{% endif %}>
+    <i class="fa-solid fa-paper-plane me-1"></i>送出週報
+  </button>
+</div>
+
+{% include '_report_notes.html' %}
+
+<!-- 專案清單資料，供 JS 產生下拉選單 -->
+<script id="projects-data" type="application/json">
+  [{% for p in projects %}{"id": {{ p.id }}, "code": {{ p.code | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+
+<script id="last-week-data" type="application/json">
+  [{% for i in last_week_items %}{"content": {{ i.content | tojson }}, "project_id": {{ i.project_id or 'null' }}, "chain_id": {{ i.chain_id | tojson }}, "is_carried_over": {{ i.is_carried_over | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+<script id="this-week-data" type="application/json">
+  [{% for i in this_week_items %}{"content": {{ i.content | tojson }}, "project_id": {{ i.project_id or 'null' }}, "chain_id": {{ i.chain_id | tojson }}, "is_carried_over": {{ i.is_carried_over | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+
+<hr class="my-4">
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>年度</th><th>週次</th><th>日期區間</th><th>專案</th><th>狀態</th><th>填報日期</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in history_reports %}
+        <tr>
+          <td>{{ r.year }}</td>
+          <td>第 {{ r.week_number }} 週</td>
+          <td class="text-nowrap">{{ format_week_range(r.year, r.week_number) }}</td>
+          <td>
+            {% for p in history_report_projects.get(r.id, []) %}
+              <span class="badge bg-{{ p.color or 'primary' }}">{{ p.code }}</span>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endfor %}
+          </td>
+          <td>
+            <span class="badge {% if r.status == '已送出' %}bg-success{% elif r.status == '草稿' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+              {{ r.status }}{% if r.locked %} (已鎖定){% endif %}
+            </span>
+          </td>
+          <td>{{ r.report_date }}</td>
+          <td>
+            <a href="{{ url_for('report.fill', year=r.year, week=r.week_number) }}" class="btn btn-sm btn-outline-primary">
+              查看/編輯
+            </a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-center text-muted">尚無歷史紀錄</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if history_pagination.pages > 1 %}
+  <div class="card-body py-2">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        <li class="page-item {% if not history_pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('report.fill', year=year, week=week, history_page=history_pagination.prev_num) }}">上一頁</a>
+        </li>
+        {% for p in history_pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+          {% if p %}
+          <li class="page-item {% if p == history_pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('report.fill', year=year, week=week, history_page=p) }}">{{ p }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not history_pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('report.fill', year=year, week=week, history_page=history_pagination.next_num) }}">下一頁</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+const YEAR = {{ year }};
+const WEEK = {{ week }};
+const REPORT_LOCKED = {{ 'true' if report.locked else 'false' }};
+const PROJECTS = JSON.parse(document.getElementById('projects-data').textContent);
+let itemCounter = 0;
+
+function projectOptionsHtml(selectedId) {
+  let html = '<option value="">(未指定專案)</option>';
+  PROJECTS.forEach(p => {
+    const sel = (selectedId && String(selectedId) === String(p.id)) ? 'selected' : '';
+    html += `<option value="${p.id}" ${sel}>${p.code}</option>`;
+  });
+  html += '<option value="__new__">＋ 新增專案...</option>';
+  return html;
+}
+
+function buildRow(type, data) {
+  data = data || {content: '', project_id: null, chain_id: '', is_carried_over: false};
+  itemCounter += 1;
+  const rowId = `${type}_row_${itemCounter}`;
+  const div = document.createElement('div');
+  div.className = 'report-item-row';
+  div.dataset.chainId = data.chain_id || '';
+  div.dataset.carriedOver = data.is_carried_over ? '1' : '0';
+  const carriedBadge = data.is_carried_over
+    ? '<span class="carried-over-badge mb-2 d-inline-block"><i class="fa-solid fa-arrow-right-long me-1"></i>延續自上週計劃</span>'
+    : '';
+  div.innerHTML = `
+    <div class="d-flex gap-2 align-items-start">
+      <span class="drag-handle mt-2"><i class="fa-solid fa-grip-vertical"></i></span>
+      <div class="flex-grow-1">
+        ${carriedBadge}
+        <select class="form-select form-select-sm project-select mb-2" onchange="handleProjectChange(this)">
+          ${projectOptionsHtml(data.project_id)}
+        </select>
+        <textarea class="form-control form-control-sm item-content" rows="2" placeholder="請輸入工作內容...">${data.content}</textarea>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-danger mt-2" onclick="this.closest('.report-item-row').remove()">
+        <i class="fa-solid fa-trash"></i>
+      </button>
+    </div>
+  `;
+  return div;
+}
+
+function handleProjectChange(select) {
+  if (select.value === '__new__') {
+    const code = prompt('請輸入新專案代號（例如：ANT）：');
+    if (!code) { select.value = ''; return; }
+    fetch('/report/project/quick_add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({code: code})
+    }).then(r => r.json()).then(res => {
+      if (res.success) {
+        PROJECTS.push({id: res.project_id, code: res.code});
+        document.querySelectorAll('.project-select').forEach(s => {
+          const cur = s.value;
+          s.innerHTML = projectOptionsHtml(cur === '__new__' ? res.project_id : cur);
+        });
+        select.value = res.project_id;
+      } else {
+        alert(res.message || '新增失敗');
+        select.value = '';
+      }
+    });
+  }
+}
+
+function addItem(type, data) {
+  const container = document.getElementById(`${type}_container`);
+  container.appendChild(buildRow(type, data));
+}
+
+function initContainer(type, jsonId) {
+  const items = JSON.parse(document.getElementById(jsonId).textContent);
+  const container = document.getElementById(`${type}_container`);
+  if (items.length === 0) {
+    addItem(type);
+  } else {
+    items.forEach(item => addItem(type, item));
+  }
+  new Sortable(container, {handle: '.drag-handle', animation: 150});
+}
+
+initContainer('last_week', 'last-week-data');
+initContainer('this_week', 'this-week-data');
+
+function collectItems(type) {
+  const container = document.getElementById(`${type}_container`);
+  const rows = Array.from(container.querySelectorAll('.report-item-row'));
+  return rows.map(row => {
+    const content = row.querySelector('.item-content').value.trim();
+    const projectSelect = row.querySelector('.project-select');
+    const projectId = projectSelect.value && projectSelect.value !== '__new__' ? parseInt(projectSelect.value) : null;
+    return {
+      content: content,
+      project_id: projectId,
+      chain_id: row.dataset.chainId || null,
+      is_carried_over: row.dataset.carriedOver === '1'
+    };
+  }).filter(i => i.content.length > 0);
+}
+
+function saveReport(submitFlag) {
+  if (REPORT_LOCKED) { alert('此週報已鎖定，無法修改'); return; }
+  const payload = {
+    year: YEAR, week: WEEK,
+    last_week_items: collectItems('last_week'),
+    this_week_items: collectItems('this_week'),
+  };
+  const url = submitFlag ? '/report/submit' : '/report/save';
+  if (submitFlag && !confirm('送出後將鎖定編輯，如需修改需申請管理者解鎖，確定要送出嗎？')) {
+    return;
+  }
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN},
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(res => {
+    alert(res.message);
+    if (res.success) location.reload();
+  }).catch(() => alert('儲存失敗，請檢查網路連線'));
+}
+</script>
+{% endblock %}

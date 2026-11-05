@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}{{ '覆評' if score_field == 'executive' else '評分' }}{% endblock %}
+{% block content %}
+<h4 class="mb-2">
+  <i class="fa-solid fa-clipboard-check me-2"></i>
+  {{ '覆評' if score_field == 'executive' else '評分' }}：{{ form.engineer.name }}（{{ form.engineer.emp_id }}）
+</h4>
+<div class="text-muted mb-3">{{ form.period.label }}　｜　部門：{{ form.engineer.department or '-' }}　｜　建議硬/軟權重：{{ weight_config.hard }}% / {{ weight_config.soft }}%</div>
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3" style="overflow:hidden;">
+    <div class="card-body">
+      <h6 class="card-title">硬指標</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-top mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:16.7%;">指標</th><th style="width:8.3%;">目標值</th><th style="width:8.3%;">權重</th>
+              <th style="width:41.7%;">員工說明</th>
+              {% if score_field == 'executive' %}<th style="width:12%;">主管評分</th>{% endif %}
+              <th style="width:25%;">{{ '覆評分數' if score_field == 'executive' else '主管評分' }}（0~100）</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for hi in hard_indicators %}
+            <tr>
+              <td>{{ hi.library_indicator.name }}</td>
+              <td class="small text-muted">{{ hi.target_value or '-' }}</td>
+              <td>{{ hi.weight_pct }}%</td>
+              <td class="small" style="color:#1d1d1f;">{{ hi.self_comment or '-' }}</td>
+              {% if score_field == 'executive' %}
+              <td class="small">
+                {{ hi.supervisor_score if hi.supervisor_score is not none else '-' }}
+                {% if hi.supervisor_comment %}<div class="text-muted">{{ hi.supervisor_comment }}</div>{% endif %}
+              </td>
+              {% endif %}
+              <td>
+                <input type="number" step="5" min="0" max="100" class="form-control form-control-sm"
+                       name="hard_score_{{ hi.id }}"
+                       value="{{ (hi.executive_score if score_field == 'executive' else hi.supervisor_score) }}">
+                {% if score_field != 'executive' %}
+                <textarea class="form-control form-control-sm mt-1" name="hard_comment_{{ hi.id }}" rows="2" placeholder="評語（選填）">{{ hi.supervisor_comment or '' }}</textarea>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3" style="overflow:hidden;">
+    <div class="card-body">
+      <h6 class="card-title">軟指標</h6>
+      {% for dim, meta in soft_dimensions.items() %}
+      {% set si = soft_indicators[dim] %}
+      <div class="border rounded p-3 mb-2">
+        <div class="fw-bold mb-1">{{ meta.label }}</div>
+        <div class="small text-muted mb-2">
+          5分：{{ meta.anchors[5] }}<br>
+          3分：{{ meta.anchors[3] }}<br>
+          1分：{{ meta.anchors[1] }}
+        </div>
+        <div class="row g-2">
+          <div class="col-md-9">
+            <label class="form-label small" style="color:#1d1d1f;">員工說明</label>
+            <div class="small" style="color:#1d1d1f;">{{ si.self_behavior_desc or '-' }}</div>
+          </div>
+          {% if score_field == 'executive' %}
+          <div class="col-md-3">
+            <label class="form-label small text-muted">主管評分</label>
+            <div class="small">{{ si.supervisor_score if si.supervisor_score is not none else '-' }} 分</div>
+          </div>
+          {% endif %}
+          <div class="col-md-3">
+            <label class="form-label small d-block">{{ '覆評分數' if score_field == 'executive' else '主管評分' }}</label>
+            {% set current_score = (si.executive_score if score_field == 'executive' else si.supervisor_score) %}
+            <div class="btn-group" role="group">
+              {% for v in [1, 2, 3, 4, 5] %}
+              <input type="radio" class="btn-check" name="soft_score_{{ dim }}" id="soft_{{ dim }}_{{ v }}"
+                     value="{{ v }}" autocomplete="off" {% if current_score == v %}checked{% endif %}>
+              <label class="btn btn-outline-primary btn-sm" for="soft_{{ dim }}_{{ v }}">{{ v }}</label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('module_b_review.scoring_dashboard') }}" class="btn btn-outline-secondary">返回</a>
+    <button type="submit" class="btn btn-primary">儲存</button>
+  </div>
+</form>
+{% endblock %}

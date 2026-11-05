@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}我的自評{% endblock %}
+{% block content %}
+<h4 class="mb-2"><i class="fa-solid fa-file-signature me-2"></i>{{ period.label }} 自評</h4>
+<div class="text-muted mb-3">
+  {% if form.status == 'draft' %}
+    {% if can_edit %}<span class="badge bg-secondary">草稿</span> 可以編輯，填完記得按「送出自評」{% else %}<span class="badge bg-danger">已無法編輯（期間已關閉或已過填寫期限）</span>{% endif %}
+  {% elif form.status == 'submitted' %}
+    <span class="badge bg-info text-dark">已送出，等待主管評分</span>
+  {% elif form.status == 'scored' %}
+    <span class="badge bg-success">主管已評分，等待最終定案</span>
+  {% else %}
+    <span class="badge bg-dark">評分已完成並定案</span>
+  {% endif %}
+</div>
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3" style="overflow:hidden;">
+    <div class="card-body">
+      <h6 class="card-title">硬指標</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-top mb-0">
+          <thead class="table-light">
+            <tr>
+              <th style="width:16.7%;">指標</th>
+              <th style="width:25%;">目標值</th>
+              <th style="width:8.3%;">權重</th>
+              <th style="width:50%;">具體事例說明</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for hi in hard_indicators %}
+            <tr>
+              <td>{{ hi.library_indicator.name }}</td>
+              <td class="small text-muted">{{ hi.target_value or '-' }}</td>
+              <td>{{ hi.weight_pct }}%</td>
+              <td>
+                <textarea class="form-control form-control-sm" name="hard_comment_{{ hi.id }}" rows="2"
+                          {% if not can_edit %}disabled{% endif %}>{{ hi.self_comment or '' }}</textarea>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3" style="overflow:hidden;">
+    <div class="card-body">
+      <h6 class="card-title">軟指標</h6>
+      <p class="text-muted small">請在「具體事例」欄位寫下實際發生過的例子，作為主管評分的依據。</p>
+      {% for dim, meta in soft_dimensions.items() %}
+      {% set si = soft_indicators[dim] %}
+      <div class="border rounded p-3 mb-2">
+        <div class="fw-bold mb-1">{{ meta.label }}</div>
+        <div class="small text-muted mb-2">
+          5分：{{ meta.anchors[5] }}<br>
+          3分：{{ meta.anchors[3] }}<br>
+          1分：{{ meta.anchors[1] }}
+        </div>
+        <label class="form-label small">具體事例說明</label>
+        <textarea class="form-control form-control-sm" name="soft_desc_{{ dim }}" rows="2"
+                  {% if not can_edit %}disabled{% endif %}>{{ si.self_behavior_desc or '' }}</textarea>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if can_edit %}
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('module_b_review.my_forms') }}" class="btn btn-outline-secondary">返回</a>
+    <button type="submit" name="action" value="draft" class="btn btn-outline-primary">儲存草稿</button>
+    <button type="submit" name="action" value="submit" class="btn btn-primary">送出自評</button>
+  </div>
+  {% else %}
+  <a href="{{ url_for('module_b_review.my_forms') }}" class="btn btn-outline-secondary">返回</a>
+  {% endif %}
+</form>
+{% endblock %}

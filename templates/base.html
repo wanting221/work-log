@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{{ company_name }}週報系統{% endblock %} - {{ brand_line }}</title>
+<link rel="icon" type="image/x-icon" href="{{ static_url('favicon.ico') }}">
+<link rel="shortcut icon" type="image/x-icon" href="{{ static_url('favicon.ico') }}">
+<!-- 提前建立與 CDN 的連線（DNS查詢+TLS握手），減少後面實際下載檔案時的等待時間 -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+<link href="{{ static_url('css/style.css') }}" rel="stylesheet">
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<nav class="mobile-topbar d-lg-none px-2">
+  <button class="btn btn-icon" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
+    <i class="fa-solid fa-bars"></i>
+  </button>
+  <span class="mobile-topbar-title ms-2">{{ company_name }}週報系統</span>
+</nav>
+
+<div class="d-flex">
+  <!-- 側邊選單 (桌面) -->
+  <div class="sidebar d-none d-lg-flex flex-column">
+    {% include '_sidebar_content.html' %}
+  </div>
+
+  <!-- 側邊選單 (手機 Offcanvas) -->
+  <div class="offcanvas offcanvas-start sidebar-offcanvas d-lg-none" tabindex="-1" id="sidebarOffcanvas">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title">選單</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body p-0">
+      {% include '_sidebar_content.html' %}
+    </div>
+  </div>
+
+  <div class="main-content flex-grow-1">
+    <div class="container-fluid py-3 px-3 px-md-4">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% else %}
+  {% block guest_content %}{% endblock %}
+{% endif %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

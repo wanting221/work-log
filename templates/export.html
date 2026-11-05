@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}匯出報表{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-file-export me-2"></i>匯出報表</h4>
+
+<div class="row g-3">
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依員工匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_engineer') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ year }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ week }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-1">{{ format_week_range(year, week) }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">組別（選填）</label>
+              <select class="form-select" name="group_id">
+                <option value="">全部組別</option>
+                {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依專案/客戶匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_project') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ year }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ week }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-2">{{ format_week_range(year, week) }}</small>
+            </div>
+            <div class="col-12 invisible" aria-hidden="true">
+              <label class="form-label small">（此欄位僅為對齊版面用，依專案/客戶匯出不需要選擇組別）</label>
+              <select class="form-select" disabled tabindex="-1"></select>
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">批次匯入歷史週報資料</h6>
+    <div class="small text-muted mb-2">
+      Excel 欄位須依序為：部門｜組別｜人員｜已執行工作精要｜客戶/專案代號｜計劃工作重點。供系統上線初期補歷史資料使用。
+      若「員工」欄位的姓名在系統裡還沒有帳號，會自動建立一個新帳號（預設密碼 <code>{{ default_new_password }}</code>，
+      工號暫用 <code>TEMP</code> 開頭的編號），匯入後請到「人員帳號管理」頁面補上正確的工號與 Email。
+    </div>
+    <form method="POST" action="{{ url_for('export.import_excel') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small">對應年度</label>
+          <input type="number" class="form-control" name="import_year" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">對應週次</label>
+          <input type="number" class="form-control" name="import_week" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Excel 檔案</label>
+          <input type="file" class="form-control" name="file" accept=".xlsx" required>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-primary w-100" type="submit">匯入</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// 依 ISO 8601 週次規則計算該週的起訖日期 (星期一~星期日)，供年度/週次輸入框即時顯示用
+function isoWeekRange(year, week) {
+  var jan4 = new Date(Date.UTC(year, 0, 4));
+  var dayOfWeek = jan4.getUTCDay() || 7; // 星期一=1 ... 星期日=7
+  var monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7);
+  var sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  function fmt(d) {
+    return d.getUTCFullYear() + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  return fmt(monday) + ' - ' + fmt(sunday);
+}
+
+function updateRangeDisplay(targetId) {
+  var target = document.getElementById(targetId);
+  if (!target) return;
+  var yearInput = document.querySelector(`.week-year-input[data-range-target="${targetId}"]`);
+  var weekInput = document.querySelector(`.week-week-input[data-range-target="${targetId}"]`);
+  var year = parseInt(yearInput.value, 10);
+  var week = parseInt(weekInput.value, 10);
+  if (!year || !week || week < 1 || week > 53) return;
+  target.textContent = isoWeekRange(year, week);
+}
+
+document.querySelectorAll('.week-year-input, .week-week-input').forEach(function (input) {
+  input.addEventListener('input', function () {
+    updateRangeDisplay(this.dataset.rangeTarget);
+  });
+});
+</script>
+{% endblock %}

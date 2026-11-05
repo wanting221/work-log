@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ period.label }} 自評{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">{{ period.label }} 績效自評</h4>
+  <a href="{{ url_for('review_self.dashboard') }}" class="btn btn-sm btn-outline-secondary">返回列表</a>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row small text-muted">
+      <div class="col-md-3">工號：{{ current_user.emp_id }}</div>
+      <div class="col-md-3">姓名：{{ current_user.name }}</div>
+      <div class="col-md-3">部門：{{ current_user.department or '-' }}</div>
+      <div class="col-md-3">組別：{{ current_user.group.name if current_user.group else '-' }}</div>
+    </div>
+  </div>
+</div>
+
+{% if not can_edit %}
+<div class="alert alert-secondary">
+  此考核表目前為<strong>唯讀</strong>狀態（已送出 / 期間未開放 / 已過填寫期限）。
+</div>
+{% endif %}
+
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card mb-3">
+    <div class="card-header bg-white">
+      <strong>① 增加公司營收、獲利：</strong>
+      <span class="text-muted small">新產品創意/提案/研發、新市場/新客戶/現有客戶的拓銷、新營運模式的建立，成果及績效？</span>
+    </div>
+    <div class="card-body">
+      <textarea name="revenue_report" class="form-control" rows="4" {{ 'readonly' if not can_edit }}>{{ form.revenue_report or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header bg-white">
+      <strong>② 降低成本：</strong>
+      <span class="text-muted small">提升工作效率、降低採購成本/營運費用、提高良率、改善產品/模具/機器/治具/製程。</span>
+    </div>
+    <div class="card-body">
+      <textarea name="cost_report" class="form-control" rows="4" {{ 'readonly' if not can_edit }}>{{ form.cost_report or '' }}</textarea>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header bg-white">
+      <strong>③ 降低風險、準時達成任務：</strong>
+      <span class="text-muted small">降低風險、預防或改善缺失，協調/溝通/整合/運用公司內外部資源，準時達成職務工作任務，規劃或執行特別專案任務。</span>
+    </div>
+    <div class="card-body">
+      <textarea name="risk_report" class="form-control" rows="4" {{ 'readonly' if not can_edit }}>{{ form.risk_report or '' }}</textarea>
+    </div>
+  </div>
+
+  <p class="text-muted small">若您能列出相關事實及數據佐證成果與績效，主管將能給予較客觀的評分。</p>
+
+  {% if can_edit %}
+  <div class="d-flex gap-2">
+    <button type="submit" name="action" value="save" class="btn btn-outline-primary">儲存草稿</button>
+    <button type="submit" name="action" value="submit" class="btn btn-primary"
+      onclick="return confirm('送出後將無法再修改，確定要送出嗎？');">送出自評</button>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

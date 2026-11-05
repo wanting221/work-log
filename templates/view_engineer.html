@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block title %}依員工檢視{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-user me-2"></i>依員工檢視</h4>
+</div>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <div class="col-md-2">
+        <label class="form-label small">部門</label>
+        {% if current_user.role in ('dept_manager', 'group_manager') %}
+          <input type="text" class="form-control" value="{{ department or '（未設定部門）' }}" disabled>
+        {% else %}
+        <select class="form-select" name="department" onchange="this.form.submit()">
+          <option value="">全部部門</option>
+          {% for d in departments %}
+            <option value="{{ d }}" {% if department == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">組別</label>
+        {% if current_user.role == 'group_manager' %}
+          <input type="text" class="form-control" value="{{ current_user.group.name if current_user.group else '（未設定組別）' }}" disabled>
+        {% else %}
+        <select class="form-select" name="group_id" onchange="this.form.submit()">
+          <option value="">全部組別</option>
+          {% for g in groups %}
+            <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">員工</label>
+        <select class="form-select" name="engineer_id">
+          <option value="">請選擇員工</option>
+          {% for e in engineers %}
+            <option value="{{ e.id }}" {% if selected_engineer and selected_engineer.id == e.id %}selected{% endif %}>{{ e.name }}（{{ e.emp_id }}）</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="year_start" value="{{ year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="week_start" value="{{ week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="year_end" value="{{ year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="week_end" value="{{ week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-2">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_engineer %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="mb-3">
+      {{ selected_engineer.name }}（{{ selected_engineer.emp_id }}）-
+      {% if is_single_week %}
+        {{ year_start }}年第{{ week_start }}週（{{ format_week_range(year_start, week_start) }}）
+      {% else %}
+        {{ year_start }}年第{{ week_start }}週 ～ {{ year_end }}年第{{ week_end }}週
+      {% endif %}
+    </h6>
+
+    {% if range_reports %}
+      {% for report in range_reports %}
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold small">
+              {{ report.year }}年第{{ report.week_number }}週（{{ format_week_range(report.year, report.week_number) }}）
+              {% if report.notes %}
+                <span class="badge bg-warning text-dark ms-2"><i class="fa-solid fa-note-sticky me-1"></i>附註</span>
+              {% endif %}
+            </div>
+            {% if report.locked and current_user.role in ('admin', 'dept_manager') %}
+            <form method="POST" action="{{ url_for('report.unlock', report_id=report.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-warning" onclick="return confirm('確定要解鎖此週報供員工修改嗎？')">
+                <i class="fa-solid fa-lock-open me-1"></i>解鎖此週報
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <h6 class="text-muted small">本週已執行工作精要</h6>
+              {% for i in report.items if i.item_type == 'last_week' %}
+              <div class="report-item-row">
+                {% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }} mb-1">{{ i.project.code }}</span>{% endif %}
+                <div>{{ i.content }}</div>
+              </div>
+              {% else %}
+              <div class="text-muted">（無資料）</div>
+              {% endfor %}
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted small">下週計劃工作重點</h6>
+              {% for i in report.items if i.item_type == 'this_week' %}
+              <div class="report-item-row">
+                {% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }} mb-1">{{ i.project.code }}</span>{% endif %}
+                <div>{{ i.content }}</div>
+              </div>
+              {% else %}
+              <div class="text-muted">（無資料）</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="text-muted">此區間內此員工尚無週報資料</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">歷史紀錄</h6>
+    <table class="table table-sm">
+      <thead><tr><th>年度</th><th>週次</th><th>狀態</th></tr></thead>
+      <tbody>
+      {% for r in history_reports %}
+        <tr>
+          <td>{{ r.year }}</td><td>第{{ r.week_number }}週</td>
+          <td><span class="badge {% if r.status == '已送出' %}bg-success{% else %}bg-secondary{% endif %}">{{ r.status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if not selected_engineer %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if is_single_week %}
+        本週全部預覽 - {{ year_start }}年第{{ week_start }}週（{{ format_week_range(year_start, week_start) }}）
+      {% else %}
+        區間全部預覽 - {{ year_start }}年第{{ week_start }}週 ～ {{ year_end }}年第{{ week_end }}週
+      {% endif %}
+      {% if group_id %}
+        {% for g in groups %}{% if g.id == group_id %}｜{{ g.name }}{% endif %}{% endfor %}
+      {% endif %}
+    </h6>
+    {% if preview_rows %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th style="width:140px;">員工</th>{% if not is_single_week %}<th style="width:90px;">週次</th>{% endif %}<th>本週已執行工作精要</th><th>下週計劃工作重點</th><th style="width:90px;">狀態</th></tr></thead>
+      <tbody>
+      {% for row in preview_rows %}
+        <tr>
+          <td>
+            <a href="{{ url_for('view_engineer.index', engineer_id=row.engineer.id, year_start=year_start, week_start=week_start, year_end=year_end, week_end=week_end, group_id=group_id or '') }}">
+              {{ row.engineer.name }}
+            </a>
+            {% if row.has_notes %}
+              <span class="badge bg-warning text-dark ms-2" title="有附註／需要討論的留言"><i class="fa-solid fa-note-sticky"></i></span>
+            {% endif %}
+            <div class="text-muted small">{{ row.engineer.emp_id }}</div>
+          </td>
+          {% if not is_single_week %}
+          <td class="text-muted small">{{ row.year }}年第{{ row.week }}週</td>
+          {% endif %}
+          <td>
+            {% for i in row.last_week_items %}
+              <div>{% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }}">{{ i.project.code }}</span>{% endif %} {{ i.content }}</div>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% for i in row.this_week_items %}
+              <div>{% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }}">{{ i.project.code }}</span>{% endif %} {{ i.content }}</div>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if row.report %}
+              <span class="badge {% if row.report.status == '已送出' %}bg-success{% elif row.report.status == '草稿' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ row.report.status }}</span>
+            {% else %}
+              <span class="badge bg-secondary">未填寫</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="text-muted">{% if is_single_week %}目前沒有符合條件的在職員工{% else %}此區間內沒有符合條件的週報資料{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

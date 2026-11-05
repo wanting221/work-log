@@ -1,0 +1,700 @@
+/* ============================================================
+   工程師週報系統 — 視覺風格說明
+   設計方向：Apple 風格（克制色彩、系統字體、清楚文字階層、
+   統一的圓角/陰影規則）。所有顏色與尺寸集中於 CSS 變數，
+   之後如需微調色調，只需改這裡，不用逐頁面找。
+   ============================================================ */
+
+:root {
+  /* ---- 色彩系統 ---- */
+  --color-bg: #f5f5f7;              /* Apple 招牌淺灰背景 */
+  --color-surface: #ffffff;          /* 卡片/表面色 */
+  --color-sidebar-bg: #fbfbfd;       /* 側邊欄背景，比主背景略亮，形成細微層次 */
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.12);
+
+  --color-text-primary: #1d1d1f;     /* Apple 近黑色，比純黑柔和 */
+  --color-text-secondary: #6e6e73;   /* 輔助文字灰 */
+  --color-text-tertiary: #86868b;
+
+  --color-accent: #0071e3;           /* Apple 官方藍 */
+  --color-accent-hover: #0077ed;
+  --color-accent-soft: #e8f2fd;      /* 淺藍底色，用於選取狀態 */
+
+  --color-success: #1d8a3e;
+  --color-success-soft: #e6f6ea;
+  --color-danger: #d70015;
+  --color-danger-soft: #fce8e8;
+  --color-warning: #a86400;
+  --color-warning-soft: #fdf1de;
+  --color-info: #0071e3;
+  --color-info-soft: #e8f2fd;
+
+  /* ---- 圓角與陰影 ---- */
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --radius-pill: 980px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.06);
+
+  /* ---- 字體 ---- */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang TC",
+    "Microsoft JhengHei", "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  font-size: 0.95rem;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-family-base);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--color-text-primary);
+}
+
+.text-muted {
+  color: var(--color-text-secondary) !important;
+}
+
+a {
+  color: var(--color-accent);
+}
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+/* ============================================================
+   行動裝置頂部導覽列
+   ============================================================ */
+.mobile-topbar {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  background: var(--color-sidebar-bg);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.mobile-topbar-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 分頁標籤（週報檢視、週報管理頁面的頁籤）：Bootstrap 預設幾乎是直角，
+   這裡改用跟其他控制項一致的 --radius-control，讓上方兩個角圓一點，
+   視覺上更柔和、跟按鈕/表單控制項的圓角風格一致 */
+.nav-tabs .nav-link {
+  border-top-left-radius: var(--radius-control);
+  border-top-right-radius: var(--radius-control);
+}
+
+/* 停用狀態的下拉選單（例如人員帳號管理頁面，非管理者角色看到的
+   直屬主管／最高直屬主管欄位）移除右側的向下箭頭圖示——欄位既然不能
+   互動，就不該留著看起來像「還能點開選擇」的視覺提示，容易造成誤解 */
+.form-select:disabled {
+  background-image: none;
+}
+
+/* 人員帳號管理／專案清單管理的清單表格：固定每個欄位之間的間距，不會因為
+   欄位內容是文字輸入框還是下拉選單，讓相鄰欄位之間的視覺間隔看起來忽大忽小 */
+.fixed-gap-table > :not(caption) > * > td,
+.fixed-gap-table > :not(caption) > * > th {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* Bootstrap 的 .table-responsive 為了讓寬表格能水平捲動，會設定
+   overflow-x: auto，但依 CSS 規範，只要 overflow-x/overflow-y 其中一個
+   不是 visible，另一個沒明講的軸向也會被瀏覽器強制變成 auto ——這會導致
+   表格裡的下拉選單（例如考核期間管理的操作選單）往下展開時，超出表格
+   可視範圍的部分被裁切看不到。這個類別把垂直方向的裁切關掉（保留水平
+   還是能捲動），讓下拉選單可以完整往下展開顯示。 */
+.table-responsive-dropdown-safe {
+  overflow-y: visible;
+}
+.btn-icon:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================================
+   側邊欄 — 淺色、macOS 系統設定風格
+   ============================================================ */
+.sidebar {
+  width: 250px;
+  min-width: 250px;
+  max-width: 250px;
+  flex-shrink: 0;
+  min-height: 100vh;
+  background-color: var(--color-sidebar-bg);
+  border-right: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+}
+
+.sidebar-offcanvas {
+  background-color: var(--color-sidebar-bg);
+}
+
+.sidebar-brand {
+  padding: 20px 20px 16px;
+}
+
+.sidebar-brand-title {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--color-text-primary);
+}
+.sidebar-brand-title i {
+  color: var(--color-accent);
+  margin-right: 8px;
+}
+
+.sidebar-brand-sub {
+  font-size: 0.78rem;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+
+.sidebar-nav {
+  padding: 4px 12px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  padding: 9px 12px;
+  margin-bottom: 2px;
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  border-radius: var(--radius-control);
+  transition: background-color 0.12s ease;
+}
+
+.sidebar-link-icon {
+  width: 20px;
+  margin-right: 10px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 0.85rem;
+}
+
+.sidebar-link:hover {
+  background-color: rgba(0, 0, 0, 0.045);
+  color: var(--color-text-primary);
+}
+
+/* 標示「(開發中)」功能的連結，文字用比一般連結淺一點的灰色，
+   跟其他已經完成、可以正常使用的功能做出區別。用 a.sidebar-link 提高
+   優先權，確保不會被 .sidebar-link 本身的顏色設定蓋過去 */
+a.sidebar-link.sidebar-link-dev,
+a.sidebar-link.sidebar-link-dev .sidebar-link-icon {
+  color: var(--color-text-tertiary) !important;
+}
+a.sidebar-link.sidebar-link-dev:hover {
+  color: var(--color-text-tertiary) !important;
+}
+
+.sidebar-link.active {
+  background-color: var(--color-accent);
+  color: #ffffff;
+}
+.sidebar-link.active .sidebar-link-icon {
+  color: #ffffff;
+}
+
+.sidebar-footer {
+  padding: 14px 16px 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-primary);
+  margin-bottom: 10px;
+}
+.sidebar-user i {
+  color: var(--color-text-tertiary);
+  font-size: 1.1rem;
+}
+.sidebar-user-name {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-role-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
+.sidebar-role-admin { background: var(--color-accent-soft); color: var(--color-accent); }
+.sidebar-role-engineer { background: var(--color-success-soft); color: var(--color-success); }
+.sidebar-role-viewer { background: rgba(0,0,0,0.06); color: var(--color-text-secondary); }
+.sidebar-role-dept_manager { background: #f2ecfb; color: #6b3fa0; }
+.sidebar-role-group_manager { background: #e6f6ea; color: #1d8a3e; }
+.sidebar-role-hr_manager { background: #fdf1e0; color: #b45309; }
+
+.db-status-badge {
+  display: block;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  margin-bottom: 10px;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.db-status-badge:hover {
+  opacity: 0.85;
+}
+.db-status-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.db-status-success {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.btn-sidebar-logout {
+  background: rgba(0, 0, 0, 0.045);
+  border: none;
+  color: var(--color-text-primary);
+  border-radius: var(--radius-control);
+  font-size: 0.85rem;
+  padding: 7px 0;
+}
+.btn-sidebar-logout:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--color-text-primary);
+}
+
+.main-content {
+  min-width: 0;
+}
+
+/* ============================================================
+   卡片
+   ============================================================ */
+.card {
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   統計卡片 — 以「淺色底 + 深色數字」取代高飽和漸層，
+   降低視覺噪音，讓數字本身成為焦點
+   ============================================================ */
+.stat-card {
+  border-radius: var(--radius-card);
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+}
+
+.stat-card .stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.bg-gradient-blue {
+  background: var(--color-info-soft);
+  color: var(--color-accent);
+}
+.bg-gradient-blue .stat-value { color: var(--color-accent); }
+
+.bg-gradient-green {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+.bg-gradient-green .stat-value { color: var(--color-success); }
+
+.bg-gradient-red {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.bg-gradient-red .stat-value { color: var(--color-danger); }
+
+.bg-gradient-purple {
+  background: #f2ecfb;
+  color: #6b3fa0;
+}
+.bg-gradient-purple .stat-value { color: #6b3fa0; }
+
+/* ============================================================
+   按鈕 — 統一圓角，Apple 藍為主色
+   ============================================================ */
+.btn {
+  border-radius: var(--radius-control);
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.btn-primary {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.btn-outline-primary {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.btn-outline-primary:hover {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.btn-outline-secondary,
+.btn-outline-success,
+.btn-outline-danger,
+.btn-outline-warning {
+  border-radius: var(--radius-control);
+}
+
+/* ============================================================
+   表單元件
+   ============================================================ */
+.form-control,
+.form-select {
+  border-radius: var(--radius-control);
+  border-color: var(--color-border-strong);
+  font-size: 0.88rem;
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.form-label {
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+/* ============================================================
+   表格 — 以細分隔線取代粗框線
+   ============================================================ */
+.table {
+  font-size: 0.88rem;
+  color: var(--color-text-primary);
+}
+.table > :not(caption) > * > * {
+  border-bottom-color: var(--color-border);
+  padding: 0.65rem 0.6rem;
+}
+.table thead th {
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--color-border-strong);
+}
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* ============================================================
+   徽章 / 進度條
+   ============================================================ */
+.badge {
+  font-weight: 600;
+  border-radius: var(--radius-control);
+  padding: 4px 9px;
+  font-size: 0.72rem;
+}
+
+/* ---- 專案代號自訂顏色（Bootstrap 沒有內建的另外 5 種，湊滿 12 色供選擇） ---- */
+.badge.bg-purple { background-color: #6f42c1 !important; color: #fff; }
+.badge.bg-pink { background-color: #d63384 !important; color: #fff; }
+.badge.bg-orange { background-color: #fd7e14 !important; color: #fff; }
+.badge.bg-teal { background-color: #0d9488 !important; color: #fff; }
+.badge.bg-indigo { background-color: #4338ca !important; color: #fff; }
+.badge.bg-navy { background-color: #1e3a5f !important; color: #fff; }
+.badge.bg-maroon { background-color: #800000 !important; color: #fff; }
+.badge.bg-olive { background-color: #808000 !important; color: #fff; }
+.badge.bg-brown { background-color: #8b4513 !important; color: #fff; }
+
+/* 自訂顏色圓圈選擇器：原生 <select><option> 在大多數瀏覽器/作業系統下無法可靠
+   顯示自訂顏色（樣式常被忽略），改用一般 HTML 元素（按鈕+下拉選單）呈現，
+   才能確保圓圈顏色跟專案實際設定的標籤顏色一致 */
+.color-circle-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  padding: 0;
+  flex-shrink: 0;
+}
+.color-circle-btn::after { display: none; }
+.color-swatch-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+.color-picker-menu { max-height: 320px; overflow-y: auto; }
+
+.progress {
+  background-color: rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-pill);
+}
+.progress-bar {
+  border-radius: var(--radius-pill);
+}
+
+/* ============================================================
+   週報項目卡片
+   ============================================================ */
+.report-item-row {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  margin-bottom: 10px;
+  position: relative;
+}
+
+.report-item-row .drag-handle {
+  cursor: grab;
+  color: var(--color-text-tertiary);
+}
+
+.report-item-row.sortable-ghost {
+  opacity: 0.4;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.risk-badge {
+  background-color: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-radius: var(--radius-control);
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.locked-banner {
+  background: var(--color-warning-soft);
+  border: 1px solid rgba(168, 100, 0, 0.15);
+  border-radius: var(--radius-control);
+  padding: 10px 16px;
+  color: var(--color-warning);
+}
+
+/* ============================================================
+   附註／需要討論留言
+   ============================================================ */
+.notes-scroll-box {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.note-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+.note-item.note-admin {
+  background: var(--color-accent-soft);
+  border-color: rgba(0, 113, 227, 0.15);
+}
+
+/* 留言狀態：待討論(灰) / 討論中(黃) / 已處理(綠) */
+.note-status-picker {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-right: 28px !important;
+  border: none;
+}
+.note-status-待討論 { background-color: rgba(0, 0, 0, 0.06); color: var(--color-text-secondary); }
+.note-status-討論中 { background-color: var(--color-warning-soft); color: var(--color-warning); }
+.note-status-已處理 { background-color: var(--color-success-soft); color: var(--color-success); }
+
+.note-status-badge-待討論 { background-color: rgba(0, 0, 0, 0.06); color: var(--color-text-secondary); font-weight: 600; padding: 3px 9px; border-radius: var(--radius-control); font-size: 0.72rem; }
+.note-status-badge-討論中 { background-color: var(--color-warning-soft); color: var(--color-warning); font-weight: 600; padding: 3px 9px; border-radius: var(--radius-control); font-size: 0.72rem; }
+.note-status-badge-已處理 { background-color: var(--color-success-soft); color: var(--color-success); font-weight: 600; padding: 3px 9px; border-radius: var(--radius-control); font-size: 0.72rem; }
+
+.carried-over-badge {
+  background: var(--color-info-soft);
+  color: var(--color-accent);
+  border-radius: var(--radius-control);
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+/* ============================================================
+   Alert（Flash 訊息）— 與整體柔和配色一致
+   ============================================================ */
+.alert {
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  font-size: 0.88rem;
+}
+.alert-success { background: var(--color-success-soft); color: var(--color-success); }
+.alert-danger { background: var(--color-danger-soft); color: var(--color-danger); }
+.alert-warning { background: var(--color-warning-soft); color: var(--color-warning); }
+.alert-info { background: var(--color-info-soft); color: var(--color-accent); }
+
+@media (max-width: 991px) {
+  .main-content {
+    width: 100%;
+  }
+}
+
+/* ============================================================
+   登入頁面 — 柔和背景 + 置中卡片，取代原本高飽和漸層
+   ============================================================ */
+.login-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2.5rem 2rem;
+  box-shadow: var(--shadow-card-hover);
+}
+
+.login-icon-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--color-accent);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+}
+
+/* 員工入口網站：系統選單頁，登入頁之前的第一站 */
+.portal-page {
+  min-height: 100vh;
+  background: var(--color-bg);
+  padding: 40px 20px;
+}
+
+.portal-header-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--color-accent);
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+}
+
+.portal-system-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  padding: 1.75rem 1.5rem;
+  height: 100%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.portal-system-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-card-hover);
+  border-color: var(--color-accent);
+  color: inherit;
+}
+.portal-system-card .portal-system-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  margin-bottom: 0.9rem;
+}
+.portal-system-card.portal-system-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.portal-system-card.portal-system-disabled:hover {
+  transform: none;
+  box-shadow: var(--shadow-card);
+  border-color: var(--color-border);
+}
+.portal-system-card.portal-system-disabled .portal-system-icon {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text-tertiary);
+}
+.portal-coming-soon-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text-secondary);
+}

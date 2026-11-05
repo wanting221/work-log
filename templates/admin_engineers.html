@@ -1,0 +1,518 @@
+{% extends 'base.html' %}
+{% block title %}人員帳號管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-users-gear me-2"></i>人員帳號管理</h4>
+  <div class="d-flex gap-2 flex-wrap">
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createAccountModal">
+      <i class="fa-solid fa-user-plus me-1"></i>新增人員帳號
+    </button>
+    {% if current_user.role in ('admin', 'hr_manager', 'dept_manager', 'group_manager') %}
+    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createGroupModal">
+      <i class="fa-solid fa-layer-group me-1"></i>新增組別
+    </button>
+    {% endif %}
+    {% if current_user.role in ('admin', 'hr_manager', 'dept_manager') and groups %}
+    <button type="button" class="btn btn-outline-success btn-sm" data-bs-toggle="modal" data-bs-target="#groupListModal">
+      <i class="fa-solid fa-list me-1"></i>組別清單
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">帳號清單</h6>
+    <div class="table-responsive">
+    <table class="table table-sm align-middle fixed-gap-table">
+      <thead><tr><th style="width:60px;">序號</th><th style="width:70px;">工號</th><th style="width:130px;">姓名</th><th style="width:110px;">小名</th><th style="width:90px;">部門</th><th style="width:140px;">組別</th><th style="width:150px;">直屬主管</th><th style="width:150px;">最高直屬主管</th><th style="width:120px;">到職日期</th><th style="width:170px;">Email</th><th style="width:140px;">角色</th><th style="width:120px;">功能</th><th style="width:60px;">操作</th></tr></thead>
+      <tbody id="engineer-sortable-body">
+      {% for e in engineers %}
+      <tr data-id="{{ e.id }}">
+        {% set row_locked_for_hr = (current_user.role == 'hr_manager' and e.role == 'admin') %}
+        <td class="text-center {% if current_user.role in ('admin', 'hr_manager') %}drag-handle{% endif %}">
+          {% if current_user.role in ('admin', 'hr_manager') %}<i class="fa-solid fa-grip-vertical"></i>{% endif %}
+        </td>
+        <td><input class="form-control form-control-sm" name="emp_id" form="eng_form_{{ e.id }}" value="{{ e.emp_id }}" style="width:70px" required {% if row_locked_for_hr %}disabled{% endif %}></td>
+        <td><input class="form-control form-control-sm" name="name" form="eng_form_{{ e.id }}" value="{{ e.name }}" {% if row_locked_for_hr %}disabled{% endif %}></td>
+        <td><input class="form-control form-control-sm" name="nickname" form="eng_form_{{ e.id }}" value="{{ e.nickname or '' }}" placeholder="選填" {% if row_locked_for_hr %}disabled{% endif %}></td>
+        <td>
+          {% if current_user.role in ('dept_manager', 'group_manager') %}
+            <input type="text" class="form-control form-control-sm" value="{{ current_user.department }}" disabled>
+          {% else %}
+            <input class="form-control form-control-sm" name="department" form="eng_form_{{ e.id }}" value="{{ e.department or '' }}" placeholder="選填" {% if row_locked_for_hr %}disabled{% endif %}>
+          {% endif %}
+        </td>
+        <td>
+          {% if current_user.role == 'group_manager' %}
+            <input type="text" class="form-control form-control-sm" value="{{ current_user.group.name if current_user.group else '（未設定組別）' }}" disabled>
+          {% else %}
+          <select class="form-select form-select-sm" name="group_id" form="eng_form_{{ e.id }}" {% if row_locked_for_hr %}disabled{% endif %}>
+            <option value="">-</option>
+            {% for g in groups %}<option value="{{ g.id }}" {% if e.group_id == g.id %}selected{% endif %}>{{ g.name }}{% if current_user.role in ('admin', 'hr_manager') and g.department %} ({{ g.department }}){% endif %}</option>{% endfor %}
+          </select>
+          {% endif %}
+        </td>
+        <td>
+          <select class="form-select form-select-sm" name="supervisor_id" form="eng_form_{{ e.id }}" {% if current_user.role not in ('admin', 'hr_manager') or row_locked_for_hr %}disabled title="只有管理者/人資主管能修改直屬主管"{% endif %}>
+            <option value="">-</option>
+            {% for other in engineers if other.id != e.id and other.role in ('group_manager', 'dept_manager', 'admin') %}<option value="{{ other.id }}" {% if e.supervisor_id == other.id %}selected{% endif %}>{{ other.name }}</option>{% endfor %}
+          </select>
+        </td>
+        <td>
+          <select class="form-select form-select-sm" name="top_supervisor_id" form="eng_form_{{ e.id }}" {% if current_user.role not in ('admin', 'hr_manager') or row_locked_for_hr %}disabled title="只有管理者/人資主管能修改最高直屬主管"{% endif %}>
+            <option value="">-</option>
+            {% if e.top_supervisor and e.top_supervisor.role == 'admin' %}
+              {# 這個人目前的最高直屬主管是管理者，但管理者不在候選名單裡
+                 （管理者的姓名不會被列為可選項目）。這裡額外補一個對應現有值
+                 的選項並預設選取，避免下拉選單找不到對應選項時，瀏覽器自動
+                 選到別的選項、不小心把現有的指定關係洗掉。 #}
+              <option value="{{ e.top_supervisor.id }}" selected>{{ e.top_supervisor.name }}（管理者）</option>
+            {% endif %}
+            {% for other in top_supervisor_options if other.id != e.id %}<option value="{{ other.id }}" {% if e.top_supervisor_id == other.id %}selected{% endif %}>{{ other.name }}{% if other.department %}（{{ other.department }}）{% endif %}</option>{% endfor %}
+          </select>
+        </td>
+        <td><input type="date" class="form-control form-control-sm" name="hire_date" form="eng_form_{{ e.id }}" value="{{ e.hire_date or '' }}" {% if row_locked_for_hr %}disabled{% endif %}></td>
+        <td><input class="form-control form-control-sm" name="email" form="eng_form_{{ e.id }}" value="{{ e.email }}" {% if row_locked_for_hr %}disabled{% endif %}></td>
+        <td>
+          <select class="form-select form-select-sm" name="role" form="eng_form_{{ e.id }}" {% if row_locked_for_hr %}disabled{% endif %}>
+            {% if current_user.role == 'admin' %}
+            <option value="admin" {% if e.role == 'admin' %}selected{% endif %}>管理者</option>
+            <option value="hr_manager" {% if e.role == 'hr_manager' %}selected{% endif %}>人資主管</option>
+            <option value="dept_manager" {% if e.role == 'dept_manager' %}selected{% endif %}>部門主管</option>
+            <option value="group_manager" {% if e.role == 'group_manager' %}selected{% endif %}>組別主管</option>
+            <option value="engineer" {% if e.role == 'engineer' %}selected{% endif %}>員工</option>
+            <option value="viewer" {% if e.role == 'viewer' %}selected{% endif %}>唯讀</option>
+            {% elif current_user.role == 'hr_manager' %}
+            {% if e.role == 'admin' %}
+              {# 人資主管不能把人設成管理者，也不能把既有管理者的角色改掉；
+                 這裡額外補一個對應原角色的選項並預設選取，避免下拉選單找不到
+                 對應選項時瀏覽器自動選到別的選項、不小心把角色改掉 #}
+              <option value="admin" selected>管理者（僅管理者可調整）</option>
+            {% endif %}
+            <option value="hr_manager" {% if e.role == 'hr_manager' %}selected{% endif %}>人資主管</option>
+            <option value="dept_manager" {% if e.role == 'dept_manager' %}selected{% endif %}>部門主管</option>
+            <option value="group_manager" {% if e.role == 'group_manager' %}selected{% endif %}>組別主管</option>
+            <option value="engineer" {% if e.role == 'engineer' %}selected{% endif %}>員工</option>
+            <option value="viewer" {% if e.role == 'viewer' %}selected{% endif %}>唯讀</option>
+            {% elif current_user.role == 'dept_manager' %}
+            {% if e.role not in ('engineer', 'dept_manager', 'group_manager') %}
+              {# 這個人目前的角色（例如管理者、唯讀）不在部門主管可指定的範圍內，
+                 額外補上一個對應原角色的選項並預設選取，避免下拉選單找不到
+                 對應選項時瀏覽器自動選到別的選項、不小心把角色改掉 #}
+              <option value="{{ e.role }}" selected>{{ {'admin': '管理者', 'viewer': '唯讀', 'hr_manager': '人資主管'}.get(e.role, e.role) }}（僅管理者可調整）</option>
+            {% endif %}
+            <option value="dept_manager" {% if e.role == 'dept_manager' %}selected{% endif %}>部門主管</option>
+            <option value="group_manager" {% if e.role == 'group_manager' %}selected{% endif %}>組別主管</option>
+            <option value="engineer" {% if e.role == 'engineer' %}selected{% endif %}>員工</option>
+            {% else %}
+            <option value="engineer" {% if e.role == 'engineer' %}selected{% endif %}>員工</option>
+            <option value="viewer" {% if e.role == 'viewer' %}selected{% endif %}>唯讀</option>
+            {% endif %}
+          </select>
+        </td>
+        <td class="text-nowrap">
+          <select class="form-select form-select-sm" name="report_mode" form="eng_form_{{ e.id }}" {% if row_locked_for_hr %}disabled{% endif %}>
+            <option value="off" {% if not e.weekly_report_enabled and not e.diary_enabled %}selected{% endif %}>關閉</option>
+            <option value="report" {% if e.weekly_report_enabled %}selected{% endif %}>週報</option>
+            <option value="diary" {% if not e.weekly_report_enabled and e.diary_enabled %}selected{% endif %}>日誌</option>
+          </select>
+        </td>
+        <td class="text-center text-nowrap">
+          <form id="eng_form_{{ e.id }}" method="POST" action="{{ url_for('admin_engineer.update', eng_id=e.id) }}"></form>
+          <input type="hidden" name="csrf_token" form="eng_form_{{ e.id }}" value="{{ csrf_token() }}">
+          <div class="dropdown d-inline-block">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="操作">
+              <i class="fa-solid fa-ellipsis-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {% if current_user.role != 'hr_manager' %}
+              <li>
+                <button type="button" class="dropdown-item" onclick="openPasswordModal({{ e.id }}, '{{ e.name }}')">
+                  <i class="fa-solid fa-key me-2"></i>更改密碼
+                </button>
+              </li>
+              {% endif %}
+              {% if e.id != current_user.id %}
+              <li>
+                <form method="POST" action="{{ url_for('admin_engineer.toggle_status', eng_id=e.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  {% if e.status == 'active' %}
+                  <button class="dropdown-item" type="submit"><i class="fa-solid fa-user-slash me-2"></i>停用帳號（離職）</button>
+                  {% else %}
+                  <button class="dropdown-item" type="submit"><i class="fa-solid fa-user-check me-2"></i>啟用帳號（在職）</button>
+                  {% endif %}
+                </form>
+              </li>
+              {% endif %}
+              {% if e.id != current_user.id and current_user.role in ('admin', 'dept_manager', 'group_manager') %}
+              <li>
+                <form method="POST" action="{{ url_for('admin_engineer.delete', eng_id=e.id) }}"
+                      onsubmit="return confirm('確定要刪除帳號 {{ e.name }}（{{ e.emp_id }}）嗎？此帳號名下所有週報資料將一併永久刪除，此操作無法復原！')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="dropdown-item text-danger" type="submit"><i class="fa-solid fa-trash me-2"></i>刪除帳號</button>
+                </form>
+              </li>
+              {% endif %}
+            </ul>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role in ('admin', 'hr_manager') %}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">CSV 批次匯出／匯入</h6>
+    <div class="d-flex flex-column flex-md-row gap-2">
+      <a href="{{ url_for('admin_engineer.export_csv') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fa-solid fa-file-csv me-1"></i>匯出 CSV
+      </a>
+      <form method="POST" action="{{ url_for('admin_engineer.import_csv') }}" enctype="multipart/form-data" class="d-flex gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="file" class="form-control form-control-sm" name="file" accept=".csv" required>
+        <button class="btn btn-outline-primary btn-sm text-nowrap" type="submit"><i class="fa-solid fa-upload me-1"></i>匯入</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 新增人員帳號 -->
+<div class="modal fade" id="createAccountModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin_engineer.create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">新增人員帳號</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small">工號</label>
+            <input class="form-control" name="emp_id" value="A000" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">姓名</label>
+            <input class="form-control" name="name" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">小名（選填）</label>
+            <input class="form-control" name="nickname">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">部門{% if current_user.role not in ('dept_manager', 'group_manager') %}（選填）{% endif %}</label>
+            {% if current_user.role in ('dept_manager', 'group_manager') %}
+              <input type="text" class="form-control" value="{{ current_user.department }}" disabled>
+            {% else %}
+              <input class="form-control" name="department">
+            {% endif %}
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">Email</label>
+            <input class="form-control" type="email" name="email" value="{{ default_new_email }}" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">組別</label>
+            {% if current_user.role == 'group_manager' %}
+              <input type="text" class="form-control" value="{{ current_user.group.name if current_user.group else '（未設定組別）' }}" disabled>
+            {% else %}
+            <select class="form-select" name="group_id">
+              <option value="">-</option>
+              {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}{% if current_user.role in ('admin', 'hr_manager') and g.department %} ({{ g.department }}){% endif %}</option>{% endfor %}
+            </select>
+            {% endif %}
+          </div>
+          {% if current_user.role in ('admin', 'hr_manager') %}
+          <div class="mb-2">
+            <label class="form-label small">直屬主管（選填）</label>
+            <select class="form-select" name="supervisor_id">
+              <option value="">-</option>
+              {% for other in engineers if other.role in ('group_manager', 'dept_manager', 'admin') %}<option value="{{ other.id }}">{{ other.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">最高直屬主管（選填）</label>
+            <select class="form-select" name="top_supervisor_id">
+              <option value="">-</option>
+              {% for other in top_supervisor_options %}<option value="{{ other.id }}">{{ other.name }}{% if other.department %}（{{ other.department }}）{% endif %}</option>{% endfor %}
+            </select>
+          </div>
+          {% endif %}
+          <div class="mb-2">
+            <label class="form-label small">到職日期（選填）</label>
+            <input type="date" class="form-control" name="hire_date">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">角色</label>
+            <select class="form-select" name="role">
+              <option value="engineer">員工</option>
+              {% if current_user.role == 'admin' %}
+              <option value="dept_manager">部門主管</option>
+              <option value="group_manager">組別主管</option>
+              <option value="hr_manager">人資主管</option>
+              <option value="admin">管理者</option>
+              <option value="viewer">唯讀</option>
+              {% elif current_user.role == 'hr_manager' %}
+              <option value="dept_manager">部門主管</option>
+              <option value="group_manager">組別主管</option>
+              <option value="hr_manager">人資主管</option>
+              <option value="viewer">唯讀</option>
+              {% elif current_user.role == 'dept_manager' %}
+              <option value="dept_manager">部門主管</option>
+              <option value="group_manager">組別主管</option>
+              {% else %}
+              <option value="viewer">唯讀</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">功能</label>
+            <select class="form-select" name="report_mode">
+              <option value="off">關閉</option>
+              <option value="report" selected>週報</option>
+              <option value="diary">日誌</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">登入密碼</label>
+            <input class="form-control" name="password" value="{{ default_new_password }}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">新增帳號</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role in ('admin', 'hr_manager', 'dept_manager', 'group_manager') %}
+<!-- 新增組別 -->
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin_engineer.create_group') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">新增組別</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small">組別名稱</label>
+            <input class="form-control" name="group_name" placeholder="例如：QA/PM" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">歸屬部門</label>
+            {% if current_user.role == 'dept_manager' %}
+              <input type="text" class="form-control" value="{{ current_user.department }}" disabled>
+              <input type="hidden" name="department" value="{{ current_user.department }}">
+            {% else %}
+              <select class="form-select" name="department" required>
+                <option value="">請選擇部門</option>
+                {% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+              </select>
+            {% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">新增</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if current_user.role in ('admin', 'hr_manager', 'dept_manager') and groups %}
+<!-- 組別清單 -->
+<div class="modal fade" id="groupListModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">組別清單</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+      </div>
+      <div class="modal-body">
+        <div id="group-sortable-body">
+        {% for g in groups %}
+        <div class="d-flex gap-2 align-items-center mb-2" data-id="{{ g.id }}">
+          {% if current_user.role in ('admin', 'hr_manager') %}
+          <span class="drag-handle text-muted" style="cursor:grab;"><i class="fa-solid fa-grip-vertical"></i></span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('admin_engineer.update_group', group_id=g.id) }}" class="d-flex gap-2 align-items-center flex-grow-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="flex-grow-1 small">{{ g.name }}</div>
+            {% if current_user.role in ('admin', 'hr_manager') %}
+            <select class="form-select form-select-sm" name="department" style="max-width:140px;">
+              <option value="">未設定</option>
+              {% for d in departments %}<option value="{{ d }}" {% if g.department == d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+            </select>
+            {% endif %}
+            <button class="btn btn-sm btn-outline-success" type="submit" title="儲存"><i class="fa-solid fa-check"></i></button>
+          </form>
+          <form method="POST" action="{{ url_for('admin_engineer.delete_group', group_id=g.id) }}"
+                onsubmit="return confirm('確定要移除組別 {{ g.name }} 嗎？底下的人員會自動解除組別關聯（人員帳號本身不會被刪除）。')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger" type="submit" title="移除組別"><i class="fa-solid fa-trash"></i></button>
+          </form>
+        </div>
+        {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">關閉</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- 更改密碼彈出視窗：所有帳號共用同一個視窗，點擊鑰匙按鈕時動態代入對應的工程師 -->
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" id="passwordModalForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">更改密碼 - <span id="passwordModalEngName"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label small">新密碼</label>
+          <input type="text" class="form-control" name="new_password" id="passwordModalInput"
+                 required autocomplete="new-password" placeholder="輸入新密碼">
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary"><i class="fa-solid fa-key me-1"></i>更新密碼</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* 自動儲存的即時回饋：欄位存檔成功時邊框短暫變綠、失敗時變紅，取代原本
+     需要另外按「儲存」按鈕才知道有沒有存到的做法。 */
+  .autosave-success {
+    outline: 2px solid #198754 !important;
+    transition: outline-color 0.3s ease;
+  }
+  .autosave-error {
+    outline: 2px solid #dc3545 !important;
+    transition: outline-color 0.3s ease;
+  }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+// 自動儲存：欄位一變更（下拉選單/日期立即觸發；文字輸入框則在失焦時觸發），
+// 就用 AJAX 把該列整個表單送出，不用再手動按「儲存」也不會整頁重新整理。
+// 用 [form^="eng_form_"] 選取「所有掛在某一列表單底下的欄位」——這些欄位
+// 用 HTML 的 form="..." 屬性關聯，不需要實際放在 <form> 標籤裡面，
+// new FormData(表單元素) 一樣抓得到，這是標準 HTML5 行為。
+function initRowAutoSave(formIdPrefix) {
+  document.querySelectorAll(`[form^="${formIdPrefix}"]`).forEach(function (field) {
+    const eventName = (field.tagName === 'SELECT' || field.type === 'date' || field.type === 'checkbox') ? 'change' : 'blur';
+    field.addEventListener(eventName, function () {
+      autoSaveField(field);
+    });
+  });
+}
+
+function autoSaveField(field) {
+  const formId = field.getAttribute('form');
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const formData = new FormData(form);
+  fetch(form.action, {
+    method: 'POST',
+    body: formData,
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      flashAutoSaveResult(field, data.success, data.message);
+    })
+    .catch(function () {
+      flashAutoSaveResult(field, false, '儲存失敗，請檢查網路連線');
+    });
+}
+
+function flashAutoSaveResult(field, success, message) {
+  field.classList.remove('autosave-success', 'autosave-error');
+  void field.offsetWidth;  // 強制瀏覽器重新計算樣式，讓同一個欄位連續儲存時動畫能重新觸發
+  field.classList.add(success ? 'autosave-success' : 'autosave-error');
+  if (!success) {
+    alert(message || '儲存失敗');
+  }
+  setTimeout(function () {
+    field.classList.remove('autosave-success', 'autosave-error');
+  }, 1500);
+}
+
+initRowAutoSave('eng_form_');
+</script>
+<script>
+function openPasswordModal(engId, engName) {
+  document.getElementById('passwordModalForm').action = `/admin/engineers/${engId}/set_password`;
+  document.getElementById('passwordModalEngName').textContent = engName;
+  document.getElementById('passwordModalInput').value = '';
+  const modal = new bootstrap.Modal(document.getElementById('passwordModal'));
+  modal.show();
+  // 視窗顯示後自動把游標移到輸入框，方便直接打字
+  document.getElementById('passwordModal').addEventListener('shown.bs.modal', function handler() {
+    document.getElementById('passwordModalInput').focus();
+    this.removeEventListener('shown.bs.modal', handler);
+  });
+}
+
+const engineerSortBody = document.getElementById('engineer-sortable-body');
+new Sortable(engineerSortBody, {
+  handle: '.drag-handle',
+  animation: 150,
+  onEnd: function () {
+    const orderedIds = Array.from(engineerSortBody.querySelectorAll('tr')).map(tr => parseInt(tr.dataset.id));
+    fetch('{{ url_for("admin_engineer.reorder") }}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+      body: JSON.stringify({ordered_ids: orderedIds})
+    }).then(r => r.json()).then(res => {
+      if (!res.success) alert(res.message || '排序儲存失敗');
+    }).catch(() => alert('排序儲存失敗，請檢查網路連線'));
+  }
+});
+
+const groupSortBody = document.getElementById('group-sortable-body');
+if (groupSortBody) {
+  new Sortable(groupSortBody, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function () {
+      const orderedIds = Array.from(groupSortBody.querySelectorAll('[data-id]')).map(el => parseInt(el.dataset.id));
+      fetch('{{ url_for("admin_engineer.reorder_groups") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+        body: JSON.stringify({ordered_ids: orderedIds})
+      }).then(r => r.json()).then(res => {
+        if (!res.success) alert(res.message || '排序儲存失敗');
+      }).catch(() => alert('排序儲存失敗，請檢查網路連線'));
+    }
+  });
+}
+</script>
+{% endblock %}

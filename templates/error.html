@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}錯誤{% endblock %}
+{% block guest_content %}
+<div class="d-flex align-items-center justify-content-center" style="min-height:100vh;">
+  <div class="text-center">
+    <div class="display-1 text-danger fw-bold">{{ code }}</div>
+    <div class="h5 text-muted">{{ message }}</div>
+    <a href="/" class="btn btn-primary mt-3">回首頁</a>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-center" style="min-height:60vh;">
+  <div class="text-center">
+    <div class="display-1 text-danger fw-bold">{{ code }}</div>
+    <div class="h5 text-muted">{{ message }}</div>
+    <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary mt-3">回首頁</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}部門權重比例設定{% endblock %}
+{% block content %}
+<h4 class="mb-3"><i class="fa-solid fa-scale-balanced me-2"></i>部門硬/軟指標權重比例（模組B）</h4>
+<p class="text-muted small mb-3">
+  每個部門的硬指標（客觀量化）跟軟指標（BARS行為評分）各佔多少比重，例如業務部業績容易量化可以拉高硬指標比例，
+  行政部門較難量化就拉高軟指標比例。硬指標＋軟指標必須等於 100。還沒特別設定的部門會先套用 50/50 的預設值。
+</p>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>部門</th><th style="width:160px;">硬指標權重 %</th><th style="width:160px;">軟指標權重 %</th><th style="width:100px;">狀態</th><th style="width:100px;"></th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <form id="weight_form_{{ loop.index }}" method="POST" action="{{ url_for('module_b_admin.update_weights') }}"></form>
+          <input type="hidden" name="csrf_token" form="weight_form_{{ loop.index }}" value="{{ csrf_token() }}">
+          <input type="hidden" name="department" form="weight_form_{{ loop.index }}" value="{{ row.department }}">
+          <td>{{ row.department }}</td>
+          <td>
+            <input type="number" step="0.1" min="0" max="100" class="form-control form-control-sm hard-pct-input"
+                   name="hard_pct" form="weight_form_{{ loop.index }}" value="{{ row.hard_pct }}" data-pair="{{ loop.index }}">
+          </td>
+          <td>
+            <input type="number" step="0.1" min="0" max="100" class="form-control form-control-sm soft-pct-input"
+                   name="soft_pct" form="weight_form_{{ loop.index }}" value="{{ row.soft_pct }}" data-pair="{{ loop.index }}">
+          </td>
+          <td>
+            {% if row.is_custom %}
+              <span class="badge bg-success">已設定</span>
+            {% else %}
+              <span class="badge bg-secondary">預設值</span>
+            {% endif %}
+          </td>
+          <td>
+            <button type="submit" form="weight_form_{{ loop.index }}" class="btn btn-sm btn-outline-primary">儲存</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">目前系統裡還沒有任何部門資料</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// 硬指標+軟指標必須等於100，兩個欄位其中一個改變時，自動把另一個欄位
+// 補成對應的差額，方便使用者填寫（使用者仍然可以自己再手動調整覆蓋）
+document.querySelectorAll('.hard-pct-input').forEach(function (hardInput) {
+  hardInput.addEventListener('input', function () {
+    const pair = hardInput.dataset.pair;
+    const softInput = document.querySelector(`.soft-pct-input[data-pair="${pair}"]`);
+    const hardVal = parseFloat(hardInput.value);
+    if (!isNaN(hardVal) && softInput) {
+      softInput.value = (100 - hardVal).toFixed(1);
+    }
+  });
+});
+document.querySelectorAll('.soft-pct-input').forEach(function (softInput) {
+  softInput.addEventListener('input', function () {
+    const pair = softInput.dataset.pair;
+    const hardInput = document.querySelector(`.hard-pct-input[data-pair="${pair}"]`);
+    const softVal = parseFloat(softInput.value);
+    if (!isNaN(softVal) && hardInput) {
+      hardInput.value = (100 - softVal).toFixed(1);
+    }
+  });
+});
+</script>
+{% endblock %}

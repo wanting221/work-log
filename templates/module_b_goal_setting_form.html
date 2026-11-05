@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}目標設定{% endblock %}
+{% block content %}
+<h4 class="mb-2"><i class="fa-solid fa-bullseye me-2"></i>目標設定：{{ department }}</h4>
+<div class="text-muted mb-3">此設定套用給「{{ department }}」部門所有人員、不分考核期間　｜　建議硬/軟權重：{{ weight_config.hard }}% / {{ weight_config.soft }}%</div>
+
+{% if not library_options %}
+<div class="alert alert-warning">
+  「{{ department }}」目前還沒有建立任何硬指標，請先到「部門硬指標庫」頁面新增後再回來設定目標。
+</div>
+{% endif %}
+
+<form method="POST" id="goal-setting-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card mb-3" style="overflow:hidden;">
+    <div class="card-body">
+      <h6 class="card-title">挑選硬指標（勾選要套用的項目，權重加總須等於 100）</h6>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr><th style="width:36px;"></th><th style="width:18%;">指標名稱</th><th style="width:22%;">衡量標準</th><th style="width:26%;">目標值</th><th style="width:14%;">權重 %</th></tr>
+          </thead>
+          <tbody>
+            {% set existing_by_lib = {} %}
+            {% for hi in hard_indicators %}{% set _ = existing_by_lib.update({hi.library_id: hi}) %}{% endfor %}
+            {% for lib in library_options %}
+            {% set existing = existing_by_lib.get(lib.id) %}
+            <tr>
+              <td class="text-center">
+                <input type="checkbox" class="form-check-input indicator-checkbox" name="library_id" value="{{ lib.id }}"
+                       data-lib-id="{{ lib.id }}" {% if existing %}checked{% endif %}>
+              </td>
+              <td>{{ lib.name }}</td>
+              <td class="small text-muted">{{ lib.measurement_standard or '-' }}</td>
+              <td>
+                <input type="text" class="form-control form-control-sm indicator-detail-{{ lib.id }}"
+                       name="target_{{ lib.id }}" value="{{ existing.target_value if existing else '' }}"
+                       placeholder="例如：達成年度目標的100%" {% if not existing %}disabled{% endif %}>
+              </td>
+              <td>
+                <input type="number" step="0.1" min="0" max="100" class="form-control form-control-sm weight-input indicator-detail-{{ lib.id }}"
+                       name="weight_{{ lib.id }}" value="{{ existing.weight_pct if existing else '' }}"
+                       {% if not existing %}disabled{% endif %}>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="text-end mt-2 small">
+        權重加總：<span id="weight-total" class="fw-bold">0</span> / 100
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('module_b_review.goal_setting_dashboard') }}" class="btn btn-outline-secondary">返回</a>
+    <button type="submit" class="btn btn-primary">儲存</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function updateWeightTotal() {
+  let total = 0;
+  document.querySelectorAll('.indicator-checkbox:checked').forEach(function (cb) {
+    const weightInput = document.querySelector(`input[name="weight_${cb.dataset.libId}"]`);
+    const val = parseFloat(weightInput.value);
+    if (!isNaN(val)) total += val;
+  });
+  document.getElementById('weight-total').textContent = total.toFixed(1);
+}
+
+document.querySelectorAll('.indicator-checkbox').forEach(function (cb) {
+  cb.addEventListener('change', function () {
+    const libId = cb.dataset.libId;
+    document.querySelectorAll(`.indicator-detail-${libId}`).forEach(function (input) {
+      input.disabled = !cb.checked;
+      if (!cb.checked) input.value = '';
+    });
+    updateWeightTotal();
+  });
+});
+document.querySelectorAll('.weight-input').forEach(function (input) {
+  input.addEventListener('input', updateWeightTotal);
+});
+updateWeightTotal();
+</script>
+{% endblock %}

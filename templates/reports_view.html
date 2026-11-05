@@ -1,0 +1,593 @@
+{% extends 'base.html' %}
+{% block title %}週報檢視{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">
+    <i class="fa-solid fa-magnifying-glass me-2"></i>週報檢視
+    <a href="{{ url_for('guidelines.index') }}" class="badge bg-success text-white text-decoration-none ms-1">
+      <i class="fa-solid fa-book-open me-1"></i>填寫原則
+    </a>
+  </h4>
+  {% if current_user.role in ('admin', 'dept_manager') %}
+  <a href="{{ url_for('admin_project.index') }}" class="btn btn-outline-success btn-sm">
+    <i class="fa-solid fa-folder-tree me-1"></i>專案清單管理
+  </a>
+  {% endif %}
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'employee' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-employee" type="button">
+      <i class="fa-solid fa-user me-1"></i>依員工檢視
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'project' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-project" type="button">
+      <i class="fa-solid fa-diagram-project me-1"></i>依專案/客戶檢視
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'export' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-export" type="button">
+      <i class="fa-solid fa-file-export me-1"></i>匯出報表
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade {% if active_tab == 'employee' %}show active{% endif %}" id="tab-employee">
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <input type="hidden" name="tab" value="employee">
+      <div class="col-md-1">
+        <label class="form-label small">部門</label>
+        {% if current_user.role in ('dept_manager', 'group_manager') %}
+          <input type="text" class="form-control" value="{{ department or '（未設定部門）' }}" disabled>
+        {% else %}
+        <select class="form-select" name="department" onchange="this.form.submit()">
+          <option value="">全部部門</option>
+          {% for d in departments %}
+            <option value="{{ d }}" {% if department == d %}selected{% endif %}>{{ d }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">組別</label>
+        {% if current_user.role == 'group_manager' %}
+          <input type="text" class="form-control" value="{{ current_user.group.name if current_user.group else '（未設定組別）' }}" disabled>
+        {% else %}
+        <select class="form-select" name="group_id" onchange="this.form.submit()">
+          <option value="">全部組別</option>
+          {% for g in groups %}
+            <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">員工</label>
+        <select class="form-select" name="engineer_id">
+          <option value="">請選擇員工</option>
+          {% for e in engineers %}
+            <option value="{{ e.id }}" {% if selected_engineer and selected_engineer.id == e.id %}selected{% endif %}>{{ e.name }}（{{ e.emp_id }}）</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="emp_year_start" value="{{ emp_year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="emp_week_start" value="{{ emp_week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="emp_year_end" value="{{ emp_year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="emp_week_end" value="{{ emp_week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-1">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_engineer %}
+<div class="card mb-3">
+  <div class="card-body">
+    <h6 class="mb-3">
+      {{ selected_engineer.name }}（{{ selected_engineer.emp_id }}）-
+      {% if emp_is_single_week %}
+        {{ emp_year_start }}年第{{ emp_week_start }}週（{{ format_week_range(emp_year_start, emp_week_start) }}）
+      {% else %}
+        {{ emp_year_start }}年第{{ emp_week_start }}週 ～ {{ emp_year_end }}年第{{ emp_week_end }}週
+      {% endif %}
+    </h6>
+
+    {% if range_reports %}
+      {% for report in range_reports %}
+      <div class="card mb-2">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="fw-semibold small">
+              {{ report.year }}年第{{ report.week_number }}週（{{ format_week_range(report.year, report.week_number) }}）
+              {% if report.notes %}
+                <span class="badge bg-warning text-dark ms-2"><i class="fa-solid fa-note-sticky me-1"></i>附註</span>
+              {% endif %}
+            </div>
+            {% if report.locked and current_user.role in ('admin', 'dept_manager') %}
+            <form method="POST" action="{{ url_for('report.unlock', report_id=report.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-sm btn-outline-warning" onclick="return confirm('確定要解鎖此週報供員工修改嗎？')">
+                <i class="fa-solid fa-lock-open me-1"></i>解鎖此週報
+              </button>
+            </form>
+            {% endif %}
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <h6 class="text-muted small">本週已執行工作精要</h6>
+              {% for i in report.items if i.item_type == 'last_week' %}
+              <div class="report-item-row">
+                {% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }} mb-1">{{ i.project.code }}</span>{% endif %}
+                <div>{{ i.content }}</div>
+              </div>
+              {% else %}
+              <div class="text-muted">（無資料）</div>
+              {% endfor %}
+            </div>
+            <div class="col-md-6">
+              <h6 class="text-muted small">下週計劃工作重點</h6>
+              {% for i in report.items if i.item_type == 'this_week' %}
+              <div class="report-item-row">
+                {% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }} mb-1">{{ i.project.code }}</span>{% endif %}
+                <div>{{ i.content }}</div>
+              </div>
+              {% else %}
+              <div class="text-muted">（無資料）</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="text-muted">此區間內此員工尚無週報資料</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">歷史紀錄</h6>
+    <table class="table table-sm">
+      <thead><tr><th>年度</th><th>週次</th><th>狀態</th></tr></thead>
+      <tbody>
+      {% for r in history_reports %}
+        <tr>
+          <td>{{ r.year }}</td><td>第{{ r.week_number }}週</td>
+          <td><span class="badge {% if r.status == '已送出' %}bg-success{% else %}bg-secondary{% endif %}">{{ r.status }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if not selected_engineer %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if emp_is_single_week %}
+        本週全部預覽 - {{ emp_year_start }}年第{{ emp_week_start }}週（{{ format_week_range(emp_year_start, emp_week_start) }}）
+      {% else %}
+        區間全部預覽 - {{ emp_year_start }}年第{{ emp_week_start }}週 ～ {{ emp_year_end }}年第{{ emp_week_end }}週
+      {% endif %}
+      {% if group_id %}
+        {% for g in groups %}{% if g.id == group_id %}｜{{ g.name }}{% endif %}{% endfor %}
+      {% endif %}
+    </h6>
+    {% if emp_preview_rows %}
+    <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th style="width:140px;">員工</th>{% if not emp_is_single_week %}<th style="width:90px;">週次</th>{% endif %}<th>本週已執行工作精要</th><th>下週計劃工作重點</th><th style="width:90px;">狀態</th></tr></thead>
+      <tbody>
+      {% for row in emp_preview_rows %}
+        <tr>
+          <td>
+            <a href="{{ url_for('reports_view.index', tab='employee', engineer_id=row.engineer.id, emp_year_start=emp_year_start, emp_week_start=emp_week_start, emp_year_end=emp_year_end, emp_week_end=emp_week_end, group_id=group_id or '') }}">
+              {{ row.engineer.name }}
+            </a>
+            {% if row.has_notes %}
+              <span class="badge bg-warning text-dark ms-2" title="有附註／需要討論的留言"><i class="fa-solid fa-note-sticky"></i></span>
+            {% endif %}
+            <div class="text-muted small">{{ row.engineer.emp_id }}</div>
+          </td>
+          {% if not emp_is_single_week %}
+          <td class="text-muted small">{{ row.year }}年第{{ row.week }}週</td>
+          {% endif %}
+          <td>
+            {% for i in row.last_week_items %}
+              <div>{% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }}">{{ i.project.code }}</span>{% endif %} {{ i.content }}</div>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% for i in row.this_week_items %}
+              <div>{% if i.project %}<span class="badge bg-{{ i.project.color or 'secondary' }}">{{ i.project.code }}</span>{% endif %} {{ i.content }}</div>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if row.report %}
+              <span class="badge {% if row.report.status == '已送出' %}bg-success{% elif row.report.status == '草稿' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ row.report.status }}</span>
+            {% else %}
+              <span class="badge bg-secondary">未填寫</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="text-muted">{% if emp_is_single_week %}目前沒有符合條件的在職員工{% else %}此區間內沒有符合條件的週報資料{% endif %}</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if emp_is_single_week %}
+<div class="card mt-3">
+  <div class="card-body">
+    {% if tracking_started %}
+    <div class="d-flex justify-content-between mb-3">
+      <h6 class="card-title mb-0">未填寫名單</h6>
+      {% if current_user.role in ('admin', 'dept_manager', 'group_manager') and tracking_summary.not_submitted %}
+      <button class="btn btn-sm btn-danger" onclick="remindAll()">
+        <i class="fa-solid fa-bell me-1"></i>一鍵提醒全部
+      </button>
+      {% endif %}
+    </div>
+    <table class="table table-hover">
+      <thead><tr><th>工號</th><th>姓名</th><th>組別</th><th>Email</th>{% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}<th>操作</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for e in tracking_summary.not_submitted %}
+        <tr id="row_{{ e.id }}">
+          <td>{{ e.emp_id }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ e.group.name if e.group else '-' }}</td>
+          <td>{{ e.email }}</td>
+          {% if current_user.role in ('admin', 'dept_manager', 'group_manager') %}
+          <td>
+            <button class="btn btn-sm btn-outline-warning" onclick="remindOne({{ e.id }})">
+              <i class="fa-solid fa-bell"></i> 提醒
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-success">所有工程師皆已完成填寫 🎉</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <h6 class="card-title">未填寫名單</h6>
+    <div class="text-center text-muted py-4 mt-2">
+      <i class="fa-solid fa-clock fa-lg mb-2 d-block"></i>
+      現在還在正常填寫期間內，暫不顯示未填寫名單。
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+</div>
+
+<div class="tab-pane fade {% if active_tab == 'project' %}show active{% endif %}" id="tab-project">
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <input type="hidden" name="tab" value="project">
+      <div class="col-md-5">
+        <label class="form-label small">專案／客戶</label>
+        <select class="form-select" name="project_id">
+          <option value="">請選擇專案</option>
+          {% for p in projects %}
+            <option value="{{ p.id }}" {% if selected_project and selected_project.id == p.id %}selected{% endif %}>
+              {{ p.code }} - {{ p.full_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="proj_year_start" value="{{ proj_year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="proj_week_start" value="{{ proj_week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="proj_year_end" value="{{ proj_year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="proj_week_end" value="{{ proj_week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-1">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_project %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between flex-wrap gap-2">
+      <div>
+        <h5>{{ selected_project.code }} - {{ selected_project.full_name }}</h5>
+        <span class="badge {% if selected_project.status == '進行中' %}bg-success{% else %}bg-secondary{% endif %}">{{ selected_project.status }}</span>
+        {% if selected_project.owner %}
+          <span class="ms-2 text-muted small">主要負責工程師：{{ selected_project.owner.name }}</span>
+        {% endif %}
+      </div>
+      <div class="text-end">
+        <div class="small text-muted">{% if proj_is_single_week %}本週{% else %}區間內{% endif %}涉入人次</div>
+        <div class="h4 mb-0">{{ entries|length }}</div>
+        <div class="small text-muted mt-1">累積週數（熱度指標）</div>
+        <div class="h5 mb-0">{{ total_weeks_involved }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if proj_is_single_week %}
+        {{ proj_year_start }}年第{{ proj_week_start }}週（{{ format_week_range(proj_year_start, proj_week_start) }}） - 各工程師處理內容
+      {% else %}
+        {{ proj_year_start }}年第{{ proj_week_start }}週 ～ {{ proj_year_end }}年第{{ proj_week_end }}週 - 各工程師處理內容
+      {% endif %}
+    </h6>
+    {% for entry in entries %}
+    <div class="border rounded p-3 mb-2">
+      <div class="fw-bold mb-2">
+        <i class="fa-solid fa-user me-1"></i>{{ entry.engineer.name }}
+        {% if selected_project.owner_engineer_id == entry.engineer.id %}
+          <span class="badge bg-warning text-dark">主要負責窗口</span>
+        {% endif %}
+        {% if not proj_is_single_week %}
+          <span class="badge bg-light text-dark border ms-1">{{ entry.year }}年第{{ entry.week }}週</span>
+        {% endif %}
+      </div>
+      <div class="row">
+        <div class="col-md-6">
+          <div class="small text-muted">本週已執行</div>
+          {% for i in entry.last_week %}<div>• {{ i.content }}</div>{% endfor %}
+        </div>
+        <div class="col-md-6">
+          <div class="small text-muted">下週計劃</div>
+          {% for i in entry.this_week %}<div>• {{ i.content }}</div>{% endfor %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-muted">{% if proj_is_single_week %}本週{% else %}此區間內{% endif %}尚無工程師處理此專案</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if not selected_project %}
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">
+      {% if proj_is_single_week %}
+        本週全部預覽 - {{ proj_year_start }}年第{{ proj_week_start }}週（{{ format_week_range(proj_year_start, proj_week_start) }}）
+      {% else %}
+        區間全部預覽 - {{ proj_year_start }}年第{{ proj_week_start }}週 ～ {{ proj_year_end }}年第{{ proj_week_end }}週
+      {% endif %}
+    </h6>
+    {% if proj_preview_rows %}
+      {% for row in proj_preview_rows %}
+      <div class="border rounded p-3 mb-2">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+          <div>
+            <span class="badge bg-{{ row.project.color or 'primary' }} fs-6">{{ row.project.code }}</span>
+            <span class="fw-bold ms-1">{{ row.project.full_name }}</span>
+          </div>
+          <div class="text-muted small">涉入人數：{{ row.engineer_count }}</div>
+        </div>
+        {% for entry in row.entries %}
+        <div class="ps-2 mb-2 {% if not loop.last %}border-bottom pb-2{% endif %}">
+          <div class="fw-bold small mb-1">
+            <i class="fa-solid fa-user me-1"></i>{{ entry.engineer.name }}
+            {% if row.project.owner_engineer_id == entry.engineer.id %}
+              <span class="badge bg-warning text-dark">主要負責窗口</span>
+            {% endif %}
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="small text-muted">本週已執行</div>
+              {% for i in entry.last_week %}<div>• {{ i.content }}</div>{% endfor %}
+            </div>
+            <div class="col-md-6">
+              <div class="small text-muted">下週計劃</div>
+              {% for i in entry.this_week %}<div>• {{ i.content }}</div>{% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="text-muted">{% if proj_is_single_week %}本週{% else %}此區間內{% endif %}尚無任何專案有進度紀錄</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+</div>
+
+<div class="tab-pane fade {% if active_tab == 'export' %}show active{% endif %}" id="tab-export">
+
+<div class="row g-3">
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依員工匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_engineer') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ export_year }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ export_week }}" required data-range-target="range-info-1">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-1">{{ format_week_range(export_year, export_week) }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">組別（選填）</label>
+              <select class="form-select" name="group_id">
+                <option value="">全部組別</option>
+                {% for g in export_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 d-flex">
+    <div class="card h-100 w-100">
+      <div class="card-body d-flex flex-column pb-4">
+        <h6 class="card-title">依專案/客戶匯出</h6>
+        <form method="GET" action="{{ url_for('export.by_project') }}" class="d-flex flex-column flex-grow-1">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small">年度</label>
+              <input type="number" class="form-control week-year-input" name="year" value="{{ export_year }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-6">
+              <label class="form-label small">週次</label>
+              <input type="number" class="form-control week-week-input" name="week" value="{{ export_week }}" required data-range-target="range-info-2">
+            </div>
+            <div class="col-12">
+              <small class="text-muted" id="range-info-2">{{ format_week_range(export_year, export_week) }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">部門（選填）</label>
+              {% if current_user.role == 'dept_manager' %}
+                <input type="text" class="form-control" value="{{ current_user.department or '（未設定部門）' }}" disabled>
+              {% else %}
+                <select class="form-select" name="department">
+                  <option value="">全部部門</option>
+                  {% for d in export_departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+                </select>
+              {% endif %}
+            </div>
+          </div>
+          <button class="btn btn-primary w-100 mt-5" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.role == 'admin' %}
+<div class="card mt-3">
+  <div class="card-body">
+    <h6 class="card-title">批次匯入歷史週報資料</h6>
+    <div class="small text-muted mb-2">
+      Excel 欄位須依序為：部門｜組別｜人員｜已執行工作精要｜客戶/專案代號｜計劃工作重點。供系統上線初期補歷史資料使用。
+      若「員工」欄位的姓名在系統裡還沒有帳號，會自動建立一個新帳號（預設密碼 <code>{{ default_new_password }}</code>，
+      工號暫用 <code>TEMP</code> 開頭的編號），匯入後請到「人員帳號管理」頁面補上正確的工號與 Email。
+    </div>
+    <form method="POST" action="{{ url_for('export.import_excel') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small">對應年度</label>
+          <input type="number" class="form-control" name="import_year" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small">對應週次</label>
+          <input type="number" class="form-control" name="import_week" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small">Excel 檔案</label>
+          <input type="file" class="form-control" name="file" accept=".xlsx" required>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-primary w-100" type="submit">匯入</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+</div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+function remindOne(id) {
+  fetch(`/tracking/remind/${id}`, {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+function remindAll() {
+  if (!confirm('確定要對所有未填寫工程師發送提醒信嗎？')) return;
+  fetch('/tracking/remind_all', {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+
+// 依 ISO 8601 週次規則計算該週的起訖日期 (星期一~星期日)，供年度/週次輸入框即時顯示用
+function isoWeekRange(year, week) {
+  var jan4 = new Date(Date.UTC(year, 0, 4));
+  var dayOfWeek = jan4.getUTCDay() || 7;
+  var monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1 + (week - 1) * 7);
+  var sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  function fmt(d) {
+    return d.getUTCFullYear() + '/' + String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0');
+  }
+  return fmt(monday) + ' - ' + fmt(sunday);
+}
+
+function updateRangeDisplay(targetId) {
+  var target = document.getElementById(targetId);
+  if (!target) return;
+  var yearInput = document.querySelector(`.week-year-input[data-range-target="${targetId}"]`);
+  var weekInput = document.querySelector(`.week-week-input[data-range-target="${targetId}"]`);
+  var year = parseInt(yearInput.value, 10);
+  var week = parseInt(weekInput.value, 10);
+  if (!year || !week || week < 1 || week > 53) return;
+  target.textContent = isoWeekRange(year, week);
+}
+
+document.querySelectorAll('.week-year-input, .week-week-input').forEach(function (input) {
+  input.addEventListener('input', function () {
+    updateRangeDisplay(this.dataset.rangeTarget);
+  });
+});
+</script>
+{% endblock %}

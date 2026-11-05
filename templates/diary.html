@@ -1,0 +1,541 @@
+{% extends 'base.html' %}
+{% block title %}填寫日誌{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <h4 class="mb-0">
+    <i class="fa-solid fa-book-journal-whills me-2"></i>填寫日誌
+    <a href="{{ url_for('guidelines.index') }}" class="badge bg-success text-white text-decoration-none ms-1">
+      <i class="fa-solid fa-book-open me-1"></i>填寫原則
+    </a>
+  </h4>
+  <form class="d-flex gap-2" method="GET">
+    <input type="number" class="form-control form-control-sm" name="year" value="{{ year }}" style="width:100px">
+    <input type="number" class="form-control form-control-sm" name="week" value="{{ week }}" style="width:90px">
+    <button class="btn btn-sm btn-outline-primary">切換週次</button>
+  </form>
+</div>
+<div class="text-muted mb-3">{{ year }} 年 第 {{ week }} 週（{{ format_week_range(year, week) }}）</div>
+
+{% set weekday_names = ['星期一', '星期二', '星期三', '星期四', '星期五'] %}
+{% for d in week_dates %}
+<div class="card mb-3" style="overflow:hidden;">
+  <div class="card-body p-0 d-flex align-items-stretch">
+    <div class="d-flex align-items-center justify-content-center flex-shrink-0 px-3 bg-light border-end" style="min-width:88px;">
+      <span class="badge bg-secondary">{{ weekday_names[loop.index0] }}</span>
+    </div>
+    <div class="table-responsive flex-grow-1">
+      <table class="table table-sm align-top mb-0">
+        <thead>
+          <tr>
+            <th style="width:13.3%;">客戶</th>
+            <th style="width:6.7%;">國家</th><th style="width:26.7%;">聯絡方式</th><th style="width:53.3%;">內容摘要</th><th style="width:48px;"></th>
+          </tr>
+        </thead>
+        <tbody id="entries-tbody-{{ loop.index0 }}">
+          {% set entries = logs_by_date[d] %}
+          {% for entry in entries %}
+          <tr data-update-url="{{ url_for('diary.update_entry', entry_id=entry.id) }}">
+            <td>
+              <select class="form-select form-select-sm diary-project-select" name="project_id">
+                <option value="">-</option>
+                {% if entry.project and entry.project not in selectable_projects %}
+                  <option value="{{ entry.project.id }}" selected>{{ entry.project.code }} - {{ entry.project.full_name }}（非進行中）</option>
+                {% endif %}
+                {% for sp in selectable_projects %}
+                  <option value="{{ sp.id }}" {% if entry.project_id == sp.id %}selected{% endif %}>{{ sp.code }} - {{ sp.full_name }}</option>
+                {% endfor %}
+                <option value="__new__">＋ 新增專案...</option>
+              </select>
+            </td>
+            <td><input class="form-control form-control-sm" name="country" value="{{ entry.country or '' }}"></td>
+            <td><input class="form-control form-control-sm" name="contact_method" value="{{ entry.contact_method or '' }}"></td>
+            <td><input class="form-control form-control-sm" name="content_summary" value="{{ entry.content_summary or '' }}"></td>
+            <td>
+              <form method="POST" action="{{ url_for('diary.delete_entry', entry_id=entry.id) }}" onsubmit="return confirm('確定要刪除這筆日誌紀錄嗎？')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-outline-danger" type="submit" title="刪除"><i class="fa-solid fa-trash"></i></button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+          <!-- 新增列：固定在表格最後一列，不再另外顯示空狀態提示文字 -->
+          <tr class="add-entry-row" data-day-index="{{ loop.index0 }}" data-log-date="{{ d.isoformat() }}">
+            <td>
+              <select class="form-select form-select-sm add-project-id diary-project-select">
+                <option value="">請選擇專案</option>
+                {% for sp in selectable_projects %}
+                  <option value="{{ sp.id }}">{{ sp.code }} - {{ sp.full_name }}</option>
+                {% endfor %}
+                <option value="__new__">＋ 新增專案...</option>
+              </select>
+            </td>
+            <td><input class="form-control form-control-sm add-country" placeholder="國家"></td>
+            <td><input class="form-control form-control-sm add-contact-method" placeholder="電話／Email／視訊…"></td>
+            <td><input class="form-control form-control-sm add-content-summary" placeholder="拜訪／聯絡內容摘要"></td>
+            <td><button type="button" class="btn btn-sm btn-primary add-entry-btn" title="新增"><i class="fa-solid fa-plus"></i></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+{% if personal_project_rows is not none %}
+<div class="card mt-4" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:36px;"></th>
+          <th style="width:20%;">專案名稱</th>
+          <th>進度更新</th>
+        </tr>
+      </thead>
+      <tbody id="project-sortable-body">
+        {% for row in personal_project_rows %}
+        <tr data-id="{{ row.personal_project.id }}">
+          <td class="text-center drag-handle"><i class="fa-solid fa-grip-vertical"></i></td>
+          <td>
+            <span class="badge bg-{{ row.project.color or 'primary' }}">{{ row.project.code }}</span>
+            <div class="small text-muted">{{ row.project.full_name }}</div>
+          </td>
+          <td>
+            <div class="small diary-progress-text" style="white-space: pre-wrap;">{{ row.progress_text }}</div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-center text-muted py-4">最近 {{ weeks_lookback }} 週還沒有紀錄任何專案。</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+const DIARY_CSRF_TOKEN = "{{ csrf_token() }}";
+const DIARY_PROJECT_OPTIONS = [
+  {% for sp in selectable_projects %}{id: {{ sp.id }}, label: {{ (sp.code ~ ' - ' ~ sp.full_name) | tojson }}}{% if not loop.last %},{% endif %}{% endfor %}
+];
+
+// 自動儲存：下拉選單變更時立即觸發；文字輸入框則在失焦時觸發，用 AJAX
+// 把該列整個表單送出，不用手動按儲存按鈕。抽成獨立函式，這樣新增的紀錄
+// （透過「新增」按鈕動態加進畫面的列）也能套用同一套自動儲存邏輯
+function bindDiaryAutoSave(field) {
+  const eventName = (field.tagName === 'SELECT') ? 'change' : 'blur';
+  field.addEventListener(eventName, function () {
+    if (field.classList.contains('diary-project-select') && field.value === '__new__') {
+      // 「＋ 新增專案...」還在跟使用者確認代號、新專案還沒建立好，這個
+      // change 事件先不送出儲存，等 handleDiaryProjectChange() 把值換成
+      // 真正的專案 id 之後，會重新觸發一次 change，屆時再交給這裡處理
+      return;
+    }
+    const row = field.closest('tr');
+    if (!row) return;
+    const updateUrl = row.dataset.updateUrl;
+    if (!updateUrl) return;
+
+    // 不用 <form> 標籤關聯（<form> 不能是 <tr> 的直接子元素，瀏覽器解析時
+    // 會異位處理搬到表格外面，多次刷新後會累積孤兒表單，導致自動儲存抓
+    // 到錯的表單而失敗），改成直接從這一列讀取四個欄位的目前值送出
+    const projectField = row.querySelector('[name="project_id"]');
+    const countryField = row.querySelector('[name="country"]');
+    const contactField = row.querySelector('[name="contact_method"]');
+    const contentField = row.querySelector('[name="content_summary"]');
+
+    const formData = new FormData();
+    formData.append('csrf_token', DIARY_CSRF_TOKEN);
+    formData.append('project_id', projectField ? projectField.value : '');
+    formData.append('country', countryField ? countryField.value : '');
+    formData.append('contact_method', contactField ? contactField.value : '');
+    formData.append('content_summary', contentField ? contentField.value : '');
+
+    fetch(updateUrl, {
+      method: 'POST',
+      body: formData,
+      headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+      .then(function (r) {
+        const contentType = r.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error('SESSION_EXPIRED');
+        }
+        return r.json();
+      })
+      .then(function (data) {
+        field.classList.remove('autosave-success', 'autosave-error');
+        void field.offsetWidth;
+        field.classList.add(data.success ? 'autosave-success' : 'autosave-error');
+        setTimeout(function () {
+          field.classList.remove('autosave-success', 'autosave-error');
+        }, 1500);
+        if (data.success) refreshPersonalProjects();
+      })
+      .catch(function (err) {
+        if (err && err.message === 'SESSION_EXPIRED') {
+          alert('登入已逾時，請重新整理頁面並登入後再試一次（剛才輸入的內容尚未儲存）');
+        } else {
+          alert('儲存失敗，請檢查網路連線');
+        }
+      });
+  });
+}
+
+// 日誌內容是「我的客戶/專案」進度更新欄位的計算依據，日誌存檔成功後
+// 呼叫這個函式，不用整頁重新整理就能讓最下方那個表格跟著更新最新內容
+function refreshPersonalProjects() {
+  const tbody = document.getElementById('project-sortable-body');
+  if (!tbody) return;  // 這個人客戶/專案功能沒開，畫面上本來就沒有這個表格
+
+  fetch('/diary/personal-projects-refresh')
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.success) return;
+      tbody.innerHTML = '';
+      if (data.rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">最近 4 週還沒有紀錄任何專案。</td></tr>';
+        return;
+      }
+      data.rows.forEach(function (row) {
+        const tr = document.createElement('tr');
+        tr.dataset.id = row.id;
+        tr.innerHTML = `
+          <td class="text-center drag-handle"><i class="fa-solid fa-grip-vertical"></i></td>
+          <td>
+            <span class="badge bg-${row.project_color}">${escapeHtml(row.project_code)}</span>
+            <div class="small text-muted">${escapeHtml(row.project_full_name)}</div>
+          </td>
+          <td><div class="small diary-progress-text" style="white-space: pre-wrap;"></div></td>
+        `;
+        tr.querySelector('.diary-progress-text').textContent = row.progress_text;
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(function () {
+      // 靜默失敗即可——日誌本身已經存檔成功了，只是最下方預覽沒刷新到，
+      // 使用者重新整理頁面還是看得到最新內容，不需要跳出干擾性的錯誤訊息
+    });
+}
+
+document.querySelectorAll('tbody[id^="entries-tbody-"] [name="project_id"], tbody[id^="entries-tbody-"] [name="country"], tbody[id^="entries-tbody-"] [name="contact_method"], tbody[id^="entries-tbody-"] [name="content_summary"]').forEach(bindDiaryAutoSave);
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function buildProjectOptionsHtml(selectedId) {
+  let html = '<option value="">-</option>';
+  DIARY_PROJECT_OPTIONS.forEach(function (p) {
+    const sel = (String(p.id) === String(selectedId)) ? 'selected' : '';
+    html += `<option value="${p.id}" ${sel}>${escapeHtml(p.label)}</option>`;
+  });
+  html += '<option value="__new__">＋ 新增專案...</option>';
+  return html;
+}
+
+// 「新增專案」選項的處理邏輯，設計完全比照「填寫週報」頁面的
+// handleProjectChange()：選到 __new__ 時跳出提示框輸入代號，呼叫
+// quick_add 端點建立專案，再把新專案加進選單並選取它。
+// 既有紀錄的下拉選單同時也綁定了自動儲存（change 事件），這裡刻意用
+// stopImmediatePropagation() 擋下同一次 change 事件觸發到自動儲存那個
+// 監聽器（不然會在使用者輸入代號、還沒建立好新專案前，就先把 __new__
+// 這個無效的值送出去儲存）；等新專案真的建立成功、選單值更新後，
+// 才用 dispatchEvent 補發一次 change 事件，讓自動儲存監聽器接手存檔。
+function handleDiaryProjectChange(e) {
+  const select = e.target;
+  if (select.value !== '__new__') return;
+  e.stopImmediatePropagation();
+  const code = prompt('請輸入新專案代號（例如：ANT）：');
+  if (!code) { select.value = ''; return; }
+  fetch('/diary/project/quick_add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-CSRFToken': DIARY_CSRF_TOKEN},
+    body: JSON.stringify({code: code})
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (res.success) {
+      DIARY_PROJECT_OPTIONS.push({id: res.project_id, label: res.code});
+      document.querySelectorAll('.diary-project-select').forEach(function (s) {
+        const cur = s.value;
+        s.innerHTML = buildProjectOptionsHtml(cur === '__new__' ? res.project_id : cur);
+      });
+      select.value = res.project_id;
+      select.dispatchEvent(new Event('change'));
+    } else {
+      alert(res.message || '新增失敗');
+      select.value = '';
+    }
+  });
+}
+document.querySelectorAll('.diary-project-select').forEach(function (s) {
+  s.addEventListener('change', handleDiaryProjectChange);
+});
+
+// 把新新增的一筆紀錄，用跟既有紀錄一模一樣的結構插進表格裡（插在「新增列」
+// 之前），並且對這一列的欄位套用自動儲存、對刪除按鈕套用確認對話框
+function appendEntryRow(dayIndex, entry) {
+  const tbody = document.getElementById('entries-tbody-' + dayIndex);
+  const addRow = tbody.querySelector('.add-entry-row');
+
+  const tr = document.createElement('tr');
+  tr.dataset.updateUrl = '/diary/' + entry.id + '/update';
+  tr.innerHTML = `
+    <td>
+      <select class="form-select form-select-sm diary-project-select" name="project_id">
+        ${buildProjectOptionsHtml(entry.project_id)}
+      </select>
+    </td>
+    <td><input class="form-control form-control-sm" name="country" value="${escapeHtml(entry.country)}"></td>
+    <td><input class="form-control form-control-sm" name="contact_method" value="${escapeHtml(entry.contact_method)}"></td>
+    <td><input class="form-control form-control-sm" name="content_summary" value="${escapeHtml(entry.content_summary)}"></td>
+    <td>
+      <form method="POST" action="/diary/${entry.id}/delete" onsubmit="return confirm('確定要刪除這筆日誌紀錄嗎？')">
+        <input type="hidden" name="csrf_token" value="${DIARY_CSRF_TOKEN}">
+        <button class="btn btn-sm btn-outline-danger" type="submit" title="刪除"><i class="fa-solid fa-trash"></i></button>
+      </form>
+    </td>
+  `;
+  tbody.insertBefore(tr, addRow);
+  tr.querySelectorAll('[name="project_id"], [name="country"], [name="contact_method"], [name="content_summary"]').forEach(bindDiaryAutoSave);
+  tr.querySelectorAll('.diary-project-select').forEach(function (s) {
+    s.addEventListener('change', handleDiaryProjectChange);
+  });
+}
+
+// 「新增」按鈕：直接用 AJAX 送出，成功後把新紀錄插入這一列上方，並清空
+// 這一列的輸入內容，方便繼續填寫下一筆，不需要整頁重新整理。只有按下
+// 「+」按鈕才會新增一行，文字欄位按 Enter 不會觸發新增（避免多行文字
+// 輸入時不小心按到 Enter 就送出還沒填完的資料）。
+function submitNewDiaryEntry(row) {
+  const dayIndex = row.dataset.dayIndex;
+  const logDate = row.dataset.logDate;
+  const projectId = row.querySelector('.add-project-id');
+  const country = row.querySelector('.add-country');
+  const contactMethod = row.querySelector('.add-contact-method');
+  const contentSummary = row.querySelector('.add-content-summary');
+
+  const formData = new FormData();
+  formData.append('csrf_token', DIARY_CSRF_TOKEN);
+  formData.append('log_date', logDate);
+  formData.append('project_id', projectId.value);
+  formData.append('country', country.value);
+  formData.append('contact_method', contactMethod.value);
+  formData.append('content_summary', contentSummary.value);
+
+  fetch('/diary/add', {
+    method: 'POST',
+    body: formData,
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  })
+    .then(function (r) {
+      const contentType = r.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('SESSION_EXPIRED');
+      }
+      return r.json();
+    })
+    .then(function (data) {
+      if (!data.success) {
+        alert(data.message || '新增失敗');
+        return;
+      }
+      appendEntryRow(dayIndex, data.entry);
+      projectId.value = '';
+      country.value = '';
+      contactMethod.value = '';
+      contentSummary.value = '';
+      refreshPersonalProjects();
+    })
+    .catch(function (err) {
+      if (err && err.message === 'SESSION_EXPIRED') {
+        alert('登入已逾時，請重新整理頁面並登入後再試一次（剛才輸入的內容尚未新增）');
+      } else {
+        alert('新增失敗，請檢查網路連線');
+      }
+    });
+}
+
+document.querySelectorAll('.add-entry-row').forEach(function (row) {
+  const btn = row.querySelector('.add-entry-btn');
+
+  // 項目3：自動儲存還是要做，但「自動新增下一列」這件事拿掉——填寫時
+  // 背景會把內容存成一筆草稿紀錄（第一次有內容時用新增的方式存、之後
+  // 繼續修改則改用更新的方式存，同一筆紀錄不會重複新增），但畫面上這一列
+  // 還是原本的新增列，不會自動搬進上面的清單、欄位也不會被清空。
+  // 只有使用者自己按下「+」，才會把這筆草稿正式移入清單、清空欄位、
+  // 準備讓使用者填寫下一筆——新增下一列的主動權完全交還給使用者。
+  function currentValues() {
+    const projectId = row.querySelector('.add-project-id');
+    const country = row.querySelector('.add-country');
+    const contactMethod = row.querySelector('.add-contact-method');
+    const contentSummary = row.querySelector('.add-content-summary');
+    return {
+      projectId: projectId.value, country: country.value,
+      contactMethod: contactMethod.value, contentSummary: contentSummary.value,
+    };
+  }
+  function hasAnyValue() {
+    const v = currentValues();
+    return !!((v.projectId && v.projectId !== '__new__') || v.country.trim() || v.contactMethod.trim() || v.contentSummary.trim());
+  }
+
+  function saveDraft() {
+    if (!hasAnyValue()) return;
+    const v = currentValues();
+    const pendingId = row.dataset.pendingEntryId;
+    const url = pendingId ? `/diary/${pendingId}/update` : '/diary/add';
+    const formData = new FormData();
+    formData.append('csrf_token', DIARY_CSRF_TOKEN);
+    if (!pendingId) formData.append('log_date', row.dataset.logDate);
+    formData.append('project_id', v.projectId);
+    formData.append('country', v.country);
+    formData.append('contact_method', v.contactMethod);
+    formData.append('content_summary', v.contentSummary);
+
+    fetch(url, {
+      method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+      .then(function (r) {
+        const contentType = r.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) throw new Error('SESSION_EXPIRED');
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.success) {
+          if (!pendingId) alert(data.message || '新增失敗');
+          return;
+        }
+        if (!pendingId) {
+          row.dataset.pendingEntryId = String(data.entry.id);
+          refreshPersonalProjects();
+        }
+      })
+      .catch(function (err) {
+        if (err && err.message === 'SESSION_EXPIRED') {
+          alert('登入已逾時，請重新整理頁面並登入後再試一次（剛才輸入的內容尚未儲存）');
+        } else if (!pendingId) {
+          alert('新增失敗，請檢查網路連線');
+        }
+      });
+  }
+
+  let debounceTimer = null;
+  function scheduleAutoSave() {
+    if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+    if (!hasAnyValue()) return;
+    debounceTimer = setTimeout(function () {
+      debounceTimer = null;
+      saveDraft();
+    }, 1500);
+  }
+  row.querySelectorAll('.add-project-id, .add-country, .add-contact-method, .add-content-summary').forEach(function (field) {
+    const eventName = (field.tagName === 'SELECT') ? 'change' : 'input';
+    field.addEventListener(eventName, scheduleAutoSave);
+  });
+
+  // 「+」按鈕：把目前這筆（不管是已經存成草稿、還是完全還沒存過）正式
+  // 移入上面的清單，並清空這一列準備給使用者填下一筆
+  btn.addEventListener('click', function () {
+    if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+    const dayIndex = row.dataset.dayIndex;
+    const v = currentValues();
+    const pendingId = row.dataset.pendingEntryId;
+
+    function finalizeRow(entryId) {
+      appendEntryRow(dayIndex, {
+        id: entryId, project_id: v.projectId || null,
+        country: v.country, contact_method: v.contactMethod, content_summary: v.contentSummary,
+      });
+      row.querySelector('.add-project-id').value = '';
+      row.querySelector('.add-country').value = '';
+      row.querySelector('.add-contact-method').value = '';
+      row.querySelector('.add-content-summary').value = '';
+      delete row.dataset.pendingEntryId;
+      refreshPersonalProjects();
+    }
+
+    if (pendingId) {
+      // 已經有草稿了，先把目前欄位的最新內容存一次（避免最後一次修改
+      // 還在防抖等待中、還沒真的存到），成功後直接移入清單，不用再呼叫
+      // 一次新增
+      const formData = new FormData();
+      formData.append('csrf_token', DIARY_CSRF_TOKEN);
+      formData.append('project_id', v.projectId);
+      formData.append('country', v.country);
+      formData.append('contact_method', v.contactMethod);
+      formData.append('content_summary', v.contentSummary);
+      fetch(`/diary/${pendingId}/update`, {
+        method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
+      })
+        .then(function (r) { return r.json(); })
+        .then(function () { finalizeRow(pendingId); })
+        .catch(function () { finalizeRow(pendingId); });
+      return;
+    }
+
+    // 還沒存過草稿（例如欄位都還空著就按+，或是輸入完立刻按+、防抖還
+    // 沒來得及觸發），走原本新增的方式送出
+    const formData = new FormData();
+    formData.append('csrf_token', DIARY_CSRF_TOKEN);
+    formData.append('log_date', row.dataset.logDate);
+    formData.append('project_id', v.projectId);
+    formData.append('country', v.country);
+    formData.append('contact_method', v.contactMethod);
+    formData.append('content_summary', v.contentSummary);
+    fetch('/diary/add', {
+      method: 'POST', body: formData, headers: {'X-Requested-With': 'XMLHttpRequest'}
+    })
+      .then(function (r) {
+        const contentType = r.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) throw new Error('SESSION_EXPIRED');
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.success) { alert(data.message || '新增失敗'); return; }
+        finalizeRow(data.entry.id);
+      })
+      .catch(function (err) {
+        if (err && err.message === 'SESSION_EXPIRED') {
+          alert('登入已逾時，請重新整理頁面並登入後再試一次（剛才輸入的內容尚未新增）');
+        } else {
+          alert('新增失敗，請檢查網路連線');
+        }
+      });
+  });
+});
+
+
+const projectSortBody = document.getElementById('project-sortable-body');
+if (projectSortBody) {
+  new Sortable(projectSortBody, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function () {
+      const orderedIds = Array.from(projectSortBody.querySelectorAll('tr[data-id]')).map(tr => parseInt(tr.dataset.id));
+      fetch('{{ url_for("personal_project.reorder") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': DIARY_CSRF_TOKEN},
+        body: JSON.stringify({ordered_ids: orderedIds})
+      }).then(r => r.json()).then(res => {
+        if (!res.success) alert(res.message || '排序儲存失敗');
+      }).catch(() => alert('排序儲存失敗，請檢查網路連線'));
+    }
+  });
+}
+
+// 這一頁常常會停留比較久在輸入內容摘要這類文字欄位，中間可能好一陣子
+// 都沒有觸發任何請求，如果剛好卡在 session 閒置逾時的臨界點，存檔時就
+// 會遇到「登入已逾時」的狀況、剛輸入的內容也就沒能存到——每 5 分鐘呼叫
+// 一次這個什麼事都不做的端點，單純延續登入狀態，只要分頁還開著就會
+// 持續呼叫，不需要使用者自己手動做任何事
+setInterval(function () {
+  fetch('/diary/keep-alive').catch(function () {});
+}, 5 * 60 * 1000);
+</script>
+{% endblock %}

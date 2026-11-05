@@ -1,0 +1,163 @@
+{% extends 'base.html' %}
+{% block title %}考評項目管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0"><i class="fa-solid fa-list-check me-2"></i>考評項目管理</h4>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('review_admin.criteria_export') }}" class="btn btn-outline-success btn-sm">
+      <i class="fa-solid fa-file-export me-1"></i>匯出 Excel
+    </a>
+    <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#importCriteriaModal">
+      <i class="fa-solid fa-file-import me-1"></i>匯入 Excel
+    </button>
+    <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#createCriteriaModal">
+      <i class="fa-solid fa-plus me-1"></i>新增項目
+    </button>
+  </div>
+</div>
+
+<!-- 匯入考評項目 Excel -->
+<div class="modal fade" id="importCriteriaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('review_admin.criteria_import') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">匯入考評項目 Excel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-2">
+            依「代碼」比對：已存在的項目會更新名稱/權重/排序/啟用狀態，不存在的代碼會新建項目。
+            權重欄請填小數（例如 0.5 代表 50%），也接受填 50 自動視為 50%。
+            匯入後若啟用中項目的權重合計不是 100%，會顯示提醒但仍會完成匯入。
+            建議先用「匯出 Excel」下載現有資料當範本再修改。
+          </p>
+          <input type="file" name="excel_file" accept=".xlsx" class="form-control" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">開始匯入</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<p class="text-muted small">項目與權重對照原始考核表設計（合計權重應為 100%）。拖曳左側的把手可調整顯示順序。</p>
+
+<div class="card">
+  <ul id="criteria-list" class="list-group list-group-flush">
+    {% for c in criteria_list %}
+    <li class="list-group-item" data-id="{{ c.id }}">
+      <div class="d-flex align-items-start">
+        <span class="me-3 drag-handle" style="cursor:grab;"><i class="fa-solid fa-grip-vertical"></i></span>
+        <div class="flex-grow-1 me-3">
+          <div>{{ c.name }}</div>
+          <div class="text-muted small">
+            代碼：{{ c.code }}
+            {% if not c.is_active %}<span class="badge bg-secondary ms-1">已停用</span>{% endif %}
+          </div>
+        </div>
+        <div class="d-flex flex-column align-items-stretch gap-1" style="width:90px; flex-shrink:0;">
+          <span class="badge bg-primary rounded-pill">{{ (c.weight * 100) | round(0) | int }}%</span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-criteria-{{ c.id }}">編輯</button>
+        </div>
+      </div>
+      <div class="collapse mt-2" id="edit-criteria-{{ c.id }}">
+        <form method="POST" action="{{ url_for('review_admin.update_criteria', criteria_id=c.id) }}" class="row g-2 p-2 bg-light rounded">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12">
+            <label class="form-label small">說明文字</label>
+            <textarea name="name" class="form-control" rows="3">{{ c.name }}</textarea>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small">權重（小數，例如 0.5 代表 50%）</label>
+            <input type="number" name="weight" step="0.01" min="0" max="1" class="form-control" value="{{ c.weight }}">
+          </div>
+          <div class="col-md-3 form-check mt-4">
+            <input type="checkbox" name="is_active" class="form-check-input" id="active-criteria-{{ c.id }}" {{ 'checked' if c.is_active }}>
+            <label class="form-check-label" for="active-criteria-{{ c.id }}">啟用中</label>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary btn-sm w-100">儲存</button>
+          </div>
+        </form>
+        <form method="POST" action="{{ url_for('review_admin.delete_criteria', criteria_id=c.id) }}" class="p-2"
+              onsubmit="return confirm('確定刪除考評項目「{{ c.code }}」？若已有評分紀錄將無法刪除，建議改用停用。');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">刪除項目</button>
+        </form>
+      </div>
+    </li>
+    {% else %}
+    <li class="list-group-item text-center text-muted py-4">尚未建立考評項目。</li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div id="reorder-status" class="mt-2 small text-muted"></div>
+
+<!-- 新增考評項目 -->
+<div class="modal fade" id="createCriteriaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('review_admin.create_criteria') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">新增考評項目</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small">代碼（英數，例如 bonus_item）</label>
+            <input type="text" name="code" class="form-control" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">說明文字</label>
+            <textarea name="name" class="form-control" rows="2" required></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small">權重（小數，例如 0.5 代表 50%）</label>
+            <input type="number" name="weight" step="0.01" min="0" max="1" class="form-control" value="0" required>
+          </div>
+          <div class="form-check">
+            <input type="checkbox" name="is_active" class="form-check-input" id="new-criteria-active" checked>
+            <label class="form-check-label" for="new-criteria-active">啟用</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="submit" class="btn btn-primary">新增</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script>
+  const list = document.getElementById('criteria-list');
+  const status = document.getElementById('reorder-status');
+
+  new Sortable(list, {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function () {
+      const orderedIds = Array.from(list.children).filter(li => li.dataset.id).map(li => parseInt(li.dataset.id, 10));
+      status.textContent = '儲存排序中...';
+      fetch("{{ url_for('review_admin.reorder_criteria') }}", {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': "{{ csrf_token() }}"},
+        body: JSON.stringify({ordered_ids: orderedIds})
+      })
+        .then(res => res.json())
+        .then(data => {
+          status.textContent = data.status === 'ok' ? '排序已儲存' : ('儲存失敗：' + (data.error || ''));
+        })
+        .catch(() => { status.textContent = '儲存失敗，請檢查網路連線'; });
+    }
+  });
+</script>
+{% endblock %}

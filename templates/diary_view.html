@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% block title %}日誌檢視{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h4 class="mb-0">
+    <i class="fa-solid fa-book-journal-whills me-2"></i>日誌檢視
+    <a href="{{ url_for('guidelines.index') }}" class="badge bg-success text-white text-decoration-none ms-1">
+      <i class="fa-solid fa-book-open me-1"></i>填寫原則
+    </a>
+  </h4>
+  {% if current_user.role == 'dept_manager' %}
+  <a href="{{ url_for('admin_project.index') }}" class="btn btn-outline-success btn-sm">
+    <i class="fa-solid fa-folder-tree me-1"></i>專案清單管理
+  </a>
+  {% endif %}
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'employee' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-employee" type="button">
+      <i class="fa-solid fa-user me-1"></i>依員工檢視
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'project' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-project" type="button">
+      <i class="fa-solid fa-diagram-project me-1"></i>依專案/客戶檢視
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link {% if active_tab == 'export' %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#tab-export" type="button">
+      <i class="fa-solid fa-file-export me-1"></i>匯出報表
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade {% if active_tab == 'employee' %}show active{% endif %}" id="tab-employee">
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <input type="hidden" name="tab" value="employee">
+      <div class="col-md-1">
+        <label class="form-label small">部門</label>
+        <input type="text" class="form-control" value="{{ department or '（未設定部門）' }}" disabled>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">組別</label>
+        {% if current_user.role == 'group_manager' %}
+          <input type="text" class="form-control" value="{{ current_user.group.name if current_user.group else '（未設定組別）' }}" disabled>
+        {% else %}
+        <select class="form-select" name="group_id" onchange="this.form.submit()">
+          <option value="">全部組別</option>
+          {% for g in groups %}
+            <option value="{{ g.id }}" {% if group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small">員工</label>
+        <select class="form-select" name="engineer_id">
+          <option value="">全部員工</option>
+          {% for e in engineers %}
+            <option value="{{ e.id }}" {% if selected_engineer and selected_engineer.id == e.id %}selected{% endif %}>{{ e.name }}（{{ e.emp_id }}）</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="emp_year_start" value="{{ emp_year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="emp_week_start" value="{{ emp_week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="emp_year_end" value="{{ emp_year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="emp_week_end" value="{{ emp_week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-1">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  {% if selected_engineer %}
+  <h6 class="mb-0">{{ selected_engineer.name }}（{{ selected_engineer.emp_id }}）的日誌紀錄</h6>
+  {% else %}
+  <h6 class="mb-0">{% if emp_is_single_week %}本週{% else %}此區間{% endif %}全部預覽</h6>
+  {% endif %}
+  <span class="text-muted small">共 {{ emp_log_rows|length }} 筆</span>
+</div>
+
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th style="width:14%;">日期</th>
+          {% if not selected_engineer %}<th style="width:12%;">員工</th>{% endif %}
+          <th style="width:14%;">客戶／專案</th><th style="width:10%;">國家</th><th style="width:16%;">聯絡方式</th><th>內容摘要</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in emp_log_rows %}
+        <tr>
+          <td class="text-nowrap">{{ row.log.log_date.strftime('%Y-%m-%d') }}（{{ ['一','二','三','四','五','六','日'][row.log.log_date.weekday()] }}）</td>
+          {% if not selected_engineer %}<td>{{ row.engineer.name }}</td>{% endif %}
+          <td>
+            {% if row.log.project %}
+              <span class="badge bg-{{ row.log.project.color or 'primary' }}">{{ row.log.project.code }}</span>
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endif %}
+          </td>
+          <td>{{ row.log.country or '-' }}</td>
+          <td>{{ row.log.contact_method or '-' }}</td>
+          <td style="white-space: pre-wrap;">{{ row.log.content_summary or '-' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">此區間內沒有任何日誌紀錄</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if emp_is_single_week and tracking_summary %}
+<div class="card mt-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-3">
+      <h6 class="card-title mb-0">未填寫名單</h6>
+      {% if tracking_summary.not_submitted %}
+      <button class="btn btn-sm btn-danger" onclick="remindAllDiary()">
+        <i class="fa-solid fa-bell me-1"></i>一鍵提醒全部
+      </button>
+      {% endif %}
+    </div>
+    <table class="table table-hover">
+      <thead><tr><th>工號</th><th>姓名</th><th>組別</th><th>Email</th><th>操作</th></tr></thead>
+      <tbody>
+      {% for e in tracking_summary.not_submitted %}
+        <tr id="diary_row_{{ e.id }}">
+          <td>{{ e.emp_id }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ e.group.name if e.group else '-' }}</td>
+          <td>{{ e.email }}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-warning" onclick="remindOneDiary({{ e.id }})">
+              <i class="fa-solid fa-bell"></i> 提醒
+            </button>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-success">所有人員皆已完成填寫 🎉</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+</div>
+
+<div class="tab-pane fade {% if active_tab == 'project' %}show active{% endif %}" id="tab-project">
+
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-2 align-items-end" method="GET">
+      <input type="hidden" name="tab" value="project">
+      <div class="col-md-5">
+        <label class="form-label small">專案／客戶</label>
+        <select class="form-select" name="project_id">
+          <option value="">全部專案</option>
+          {% for p in projects %}
+            <option value="{{ p.id }}" {% if selected_project and selected_project.id == p.id %}selected{% endif %}>
+              {{ p.code }} - {{ p.full_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="proj_year_start" value="{{ proj_year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="proj_week_start" value="{{ proj_week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="proj_year_end" value="{{ proj_year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="proj_week_end" value="{{ proj_week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-12 col-lg-1">
+        <button class="btn btn-primary w-100">查詢</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if selected_project %}
+<div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+  <h6 class="mb-0"><span class="badge bg-{{ selected_project.color or 'primary' }}">{{ selected_project.code }}</span> {{ selected_project.full_name }} 的拜訪紀錄</h6>
+  <span class="text-muted small">共 {{ proj_log_rows|length }} 筆</span>
+</div>
+<div class="card" style="overflow:hidden;">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr><th style="width:14%;">日期</th><th style="width:14%;">員工</th><th style="width:12%;">國家</th><th style="width:18%;">聯絡方式</th><th>內容摘要</th></tr>
+      </thead>
+      <tbody>
+      {% for row in proj_log_rows %}
+        <tr>
+          <td class="text-nowrap">{{ row.log.log_date.strftime('%Y-%m-%d') }}（{{ ['一','二','三','四','五','六','日'][row.log.log_date.weekday()] }}）</td>
+          <td>{{ row.engineer.name }}</td>
+          <td>{{ row.log.country or '-' }}</td>
+          <td>{{ row.log.contact_method or '-' }}</td>
+          <td style="white-space: pre-wrap;">{{ row.log.content_summary or '-' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">此區間內沒有這個專案的日誌紀錄</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<h6 class="mb-2">{% if proj_is_single_week %}本週{% else %}此區間{% endif %}各專案拜訪熱度排行</h6>
+{% for grp in proj_preview_groups %}
+<div class="card mb-3" style="overflow:hidden;">
+  <div class="card-header bg-light d-flex justify-content-between align-items-center">
+    <span><span class="badge bg-{{ grp.project.color or 'primary' }}">{{ grp.project.code }}</span> {{ grp.project.full_name }}</span>
+    <span class="text-muted small">{{ grp.engineer_count }} 位員工／共 {{ grp.log_count }} 筆紀錄</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead>
+        <tr><th style="width:14%;">日期</th><th style="width:14%;">員工</th><th style="width:12%;">國家</th><th style="width:18%;">聯絡方式</th><th>內容摘要</th></tr>
+      </thead>
+      <tbody>
+        {% for row in grp.logs %}
+        <tr>
+          <td class="text-nowrap">{{ row.log.log_date.strftime('%Y-%m-%d') }}（{{ ['一','二','三','四','五','六','日'][row.log.log_date.weekday()] }}）</td>
+          <td>{{ row.engineer.name }}</td>
+          <td>{{ row.log.country or '-' }}</td>
+          <td>{{ row.log.contact_method or '-' }}</td>
+          <td style="white-space: pre-wrap;">{{ row.log.content_summary or '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card"><div class="card-body text-center text-muted py-4">此區間內沒有任何日誌涉及專案／客戶</div></div>
+{% endfor %}
+{% endif %}
+
+</div>
+
+<div class="tab-pane fade {% if active_tab == 'export' %}show active{% endif %}" id="tab-export">
+<div class="card">
+  <div class="card-body">
+    <h6 class="card-title">匯出日誌紀錄</h6>
+    <div class="small text-muted mb-3">
+      匯出範圍內轄下人員的所有日誌紀錄（日期／星期／員工／客戶專案／國家／聯絡方式／內容摘要），Excel 格式。
+    </div>
+    <form method="GET" action="{{ url_for('diary_view.export') }}" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label small">起始年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="export_year_start" value="{{ export_year_start }}" placeholder="年度">
+          <input type="number" class="form-control" name="export_week_start" value="{{ export_week_start }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small">結束年度／週次</label>
+        <div class="d-flex gap-1">
+          <input type="number" class="form-control" name="export_year_end" value="{{ export_year_end }}" placeholder="年度">
+          <input type="number" class="form-control" name="export_week_end" value="{{ export_week_end }}" placeholder="週次" min="1" max="53">
+        </div>
+      </div>
+      <div class="col-md-4">
+        <button class="btn btn-primary w-100" type="submit"><i class="fa-solid fa-download me-1"></i>匯出 Excel</button>
+      </div>
+    </form>
+  </div>
+</div>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+function remindOneDiary(id) {
+  fetch(`/tracking/remind_diary/${id}`, {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+function remindAllDiary() {
+  if (!confirm('確定要對所有未填寫日誌的人員發送提醒信嗎？')) return;
+  fetch('/tracking/remind_diary_all', {method: 'POST', headers: {'X-CSRFToken': CSRF_TOKEN}})
+    .then(r => r.json()).then(res => alert(res.message));
+}
+</script>
+{% endblock %}
