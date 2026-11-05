@@ -1,0 +1,21 @@
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Bcrypt==1.0.1
+Flask-Compress==1.15
+APScheduler==3.10.4
+openpyxl==3.1.2
+python-dotenv==1.0.1
+cryptography==42.0.5
+email-validator==2.1.1
+Werkzeug==3.0.3
+gunicorn==22.0.0
+# Cloud SQL 連線驅動：這裡同時裝 MySQL(PyMySQL) 跟 PostgreSQL(psycopg2-binary)
+# 兩種驅動——PyMySQL 是純 Python 實作，不需要額外編譯環境，適合 Cloud Run
+# 這種容器環境；psycopg2-binary 則是連 PostgreSQL 用的（例如共用其他系統
+# 既有的 PostgreSQL 執行個體以節省 Cloud SQL 執行個體費用時）。
+# config.py 裡的 DB_ENGINE 這個環境變數決定實際會用哪一個驅動連線，
+# 兩個套件都裝著不會互相影響，也不會增加維運負擔，只是容器映像檔多幾MB。
+PyMySQL==1.1.1
+psycopg2-binary==2.9.9

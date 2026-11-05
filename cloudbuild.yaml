@@ -1,0 +1,116 @@
+# cloudbuild.yaml - Google Cloud Build 設定檔
+# 用途：自動建置 Docker 映像檔並部署到 Cloud Run
+#
+# 使用方式：
+#   1. 於 Google Cloud Console 建立 Cloud Build 觸發條件 (Trigger)，來源選擇你的 Git repository
+#   2. 設定觸發條件的設定檔案路徑為此檔案 (cloudbuild.yaml)
+#   3. 依需求修改下方的 _SERVICE_NAME、_REGION 等替代變數 (substitutions)
+#   4. 正式環境的機密設定 (SECRET_KEY、SMTP密碼、備份加密金鑰等) 請改用
+#      Secret Manager，並在 Cloud Run 服務設定中以「密鑰參照」方式掛載為環境變數，
+#      不要寫在這個檔案或 Dockerfile 裡
+
+steps:
+  # 預檢查：確認 Secret Manager 裡的 weekly-report-db-pass 密鑰已經建立好。
+  # 這個密鑰無法由建置流程自動建立（建立密鑰需要先知道密碼本身，而密碼不應該
+  # 出現在這個檔案或建置紀錄裡），必須先手動在 Cloud Shell 建立一次。
+  # 加這個步驟是為了「快速失敗」：如果密鑰不存在，這裡會立刻用清楚的中文訊息
+  # 停下來，不會像沒有這個步驟時一樣，直接在後面的部署步驟丟出一長串不容易看懂的
+  # gcloud 錯誤訊息。
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'check-secret-exists'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if ! gcloud secrets describe weekly-report-db-pass --project=${PROJECT_ID} >/dev/null 2>&1; then
+          echo ""
+          echo "=========================================================="
+          echo "❌ 部署中止：Secret Manager 裡還沒有 weekly-report-db-pass 這個密鑰"
+          echo "=========================================================="
+          echo ""
+          echo "請先在 Cloud Shell 執行以下指令建立密鑰（把「你的密碼」換成"
+          echo "應用程式使用的資料庫帳號的實際密碼）："
+          echo ""
+          echo "  printf '你的密碼' | gcloud secrets create weekly-report-db-pass \\"
+          echo "    --data-file=- --project=${PROJECT_ID}"
+          echo ""
+          echo "建立密鑰後，還需要授權 Cloud Run 讀取（下面已經直接帶入你專案的實際編號，複製整段執行即可）："
+          echo ""
+          echo "  gcloud secrets add-iam-policy-binding weekly-report-db-pass \\"
+          echo "    --member='serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com' \\"
+          echo "    --role='roles/secretmanager.secretAccessor' \\"
+          echo "    --project=${PROJECT_ID}"
+          echo ""
+          echo "做完之後，重新 push 一次程式碼（或在 Cloud Build 主控台點「重新執行」）"
+          echo "即可繼續部署。"
+          echo "=========================================================="
+          exit 1
+        fi
+        echo "✅ 已確認 weekly-report-db-pass 密鑰存在，繼續進行建置與部署。"
+
+  # 建置 Docker 映像檔
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '.'
+
+  # 推送映像檔至 Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+
+  # 部署到 Cloud Run
+  # 2026年10月起：提醒信/備份已改由 Cloud Scheduler 呼叫 /internal/trigger/* 端點觸發
+  # （ENABLE_INTERNAL_SCHEDULER=False，這個環境變數是直接設在 Cloud Run 服務上，
+  # 下面的 --update-env-vars 不會動到它），所以 --min-instances=0：沒人使用時縮到
+  # 0 個容器、不計閒置費用，有人打開網站才冷啟動（約5-15秒）。
+  # 不要把 --min-instances 改回 1，否則等於把省錢設定復原。
+  # --max-instances=1 暫時維持不動：這個服務跟其他系統共用同一台資料庫，每個容器實例
+  # 的連線池上限是 8 條，實例數放寬之後連線數會跟著倍增。
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+      - '--region=${_REGION}'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--max-instances=1'
+      - '--min-instances=0'
+      # 已經不是這個服務自己原本、獨立的weekly-report-db(MySQL)了——如果不小心
+      # 把下面這幾個值改回舊的，等於是把整個搬移復原，網站會連不上資料庫
+      - '--add-cloudsql-instances=${_CLOUDSQL_CONNECTION_NAME}'
+      #
+      # 資料庫連線改用「拆開的環境變數」，比整串 DATABASE_URL 字串更不容易出錯
+      # （不用自己組字串、不會因為密碼裡的特殊符號或格式打錯而連不上）：
+      # 非機密的連線資訊用一般環境變數，只有密碼透過 Secret Manager 密鑰參照傳入，
+      # 不會出現在這個檔案、git 紀錄，或 Cloud Run 主控台的環境變數畫面上。
+      #
+      # --remove-env-vars 是為了相容之前可能用過的舊設定方式，先移除乾淨再重新套用，
+      # 避免 Cloud Run 出現 "Cannot update environment variable ... different type" 錯誤。
+      - '--remove-env-vars=DATABASE_URL,DB_PASSWORD,DB_PASS'
+      - '--update-env-vars=DB_ENGINE=postgresql,DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},INSTANCE_CONNECTION_NAME=${_CLOUDSQL_CONNECTION_NAME}'
+      - '--set-secrets=DB_PASS=${_DB_PASS_SECRET}:latest'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}'
+
+substitutions:
+  # 下面四個必須在 Cloud Build 觸發條件的「替代變數」裡填入你自己的值；
+  # 刻意留空：沒填就會部署失敗，不會誤連到其他人的資料庫
+  _SERVICE_NAME: weekly-report
+  _REGION: asia-east1
+  # 這是 Google「持續部署」精靈當初自動建立的倉庫名稱，不是隨便取的，
+  # 改成別的名稱會導致 docker push 那一步找不到倉庫而建置失敗
+  _REPOSITORY: cloud-run-source-deploy
+  _CLOUDSQL_CONNECTION_NAME: ''
+  _DB_USER: ''
+  _DB_NAME: ''
+  _DB_PASS_SECRET: ''
+
+options:
+  logging: CLOUD_LOGGING_ONLY
