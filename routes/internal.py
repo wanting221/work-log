@@ -44,8 +44,8 @@ def fix_admin_account_route():
         https://你的服務網址/internal/fix-admin-account?token=你在.env設定的INTERNAL_TRIGGER_TOKEN
 
     會自動處理三種情況：
-    1. 資料庫還是舊的 A001 -> 改成 A171，密碼重設為 admin123
-    2. 資料庫已經是 A171 -> 只重設密碼為 admin123
+    1. 資料庫已經是 A00007 -> 只重設密碼為 admin123
+    2. 資料庫還是舊的 A171 / A001 -> 改成 A00007，密碼重設為 admin123
     3. 資料庫完全空白 -> 建立管理者帳號（不含任何假資料）
     """
     if not _check_token():
@@ -60,7 +60,7 @@ def fix_admin_account_route():
     <body style="font-family: sans-serif; padding: 40px;">
       <h2>✅ 執行完成</h2>
       <p>{message}</p>
-      <p>現在可以使用 <b>工號 A171 / 密碼 admin123</b> 登入。</p>
+      <p>現在可以使用 <b>工號 A00007 / 密碼 admin123</b> 登入。</p>
       <a href="/weekly_report_login">前往登入頁面</a>
     </body></html>
     """

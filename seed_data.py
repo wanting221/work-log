@@ -14,7 +14,9 @@ from decimal import Decimal
 from extensions import db
 from models import Engineer, EmailTemplate, ScoreCriteria, DeptIndicatorLibrary, ModuleBSoftDimensionConfig
 
-ADMIN_EMP_ID = 'A171'
+ADMIN_EMP_ID = 'A00007'
+# 舊版預設管理者工號：執行 fix_admin_account() 時會自動改成 ADMIN_EMP_ID
+LEGACY_ADMIN_EMP_IDS = ('A171', 'A001')
 ADMIN_PASSWORD = 'admin123'
 ADMIN_NAME = '系統管理者'
 import os as _os
@@ -164,23 +166,24 @@ def seed_demo_data(verbose=True):
 def fix_admin_account():
     """
     修復/建立管理者帳號，處理三種情況：
-    1. 資料庫還是舊的 A001 -> 改成 A171，密碼重設為 admin123
-    2. 資料庫已經是 A171 -> 只重設密碼為 admin123
+    1. 資料庫已經有 A00007 -> 只重設密碼為 admin123
+    2. 資料庫還是舊的預設工號（A171 或更早的 A001）-> 改成 A00007，密碼重設為 admin123
     3. 資料庫完全空白，尚無任何帳號 -> 執行最小初始化 (seed_demo_data)
     呼叫前必須已經在 Flask app context 中。回傳說明文字。
     """
-    old_admin = Engineer.query.filter_by(emp_id='A001').first()
-    if old_admin:
-        old_admin.emp_id = ADMIN_EMP_ID
-        old_admin.set_password(ADMIN_PASSWORD)
-        db.session.commit()
-        return f'已將管理者帳號從 A001 更新為 {ADMIN_EMP_ID}，密碼已重設為 {ADMIN_PASSWORD}'
-
-    new_admin = Engineer.query.filter_by(emp_id=ADMIN_EMP_ID).first()
-    if new_admin:
-        new_admin.set_password(ADMIN_PASSWORD)
+    admin = Engineer.query.filter_by(emp_id=ADMIN_EMP_ID).first()
+    if admin:
+        admin.set_password(ADMIN_PASSWORD)
         db.session.commit()
         return f'管理者帳號 {ADMIN_EMP_ID} 已存在，密碼已重設為 {ADMIN_PASSWORD}'
+
+    for legacy_id in LEGACY_ADMIN_EMP_IDS:
+        old_admin = Engineer.query.filter_by(emp_id=legacy_id).first()
+        if old_admin:
+            old_admin.emp_id = ADMIN_EMP_ID
+            old_admin.set_password(ADMIN_PASSWORD)
+            db.session.commit()
+            return f'已將管理者帳號從 {legacy_id} 更新為 {ADMIN_EMP_ID}，密碼已重設為 {ADMIN_PASSWORD}'
 
     seed_demo_data(verbose=False)
     return f'資料庫原本是空的，已建立管理者帳號（{ADMIN_EMP_ID} / 密碼 {ADMIN_PASSWORD}），未建立任何假資料'

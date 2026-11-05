@@ -20,9 +20,9 @@ class Config:
 
     # ---- 公司／品牌設定 ----
     # 同一份程式碼要給多家公司各自部署時，用環境變數區分，不用改程式碼。
-    # 沒設定時使用中性預設值；正式使用前請務必改成自己公司的設定。
-    COMPANY_NAME = os.environ.get('COMPANY_NAME', '公司名稱')
-    COMPANY_SHORT_NAME = os.environ.get('COMPANY_SHORT_NAME', '公司')
+    # 沒設定時預設為 Mellow雲奧；部署給其他公司時用環境變數覆蓋即可。
+    COMPANY_NAME = os.environ.get('COMPANY_NAME', 'Mellow雲奧')
+    COMPANY_SHORT_NAME = os.environ.get('COMPANY_SHORT_NAME', 'Mellow雲奧')
     COMPANY_NAME_EN = os.environ.get('COMPANY_NAME_EN', '')
     # 批次匯入／管理者新增帳號時的預設密碼（建議每家公司都設成自己的，並要求員工登入後修改）
     DEFAULT_NEW_ACCOUNT_PASSWORD = os.environ.get('DEFAULT_NEW_ACCOUNT_PASSWORD', 'ChangeMe-2026!')
@@ -151,7 +151,7 @@ class Config:
     SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
     SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
     SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True') == 'True'
-    MAIL_SENDER_NAME = os.environ.get('MAIL_SENDER_NAME', 'RD週報系統')
+    MAIL_SENDER_NAME = os.environ.get('MAIL_SENDER_NAME', f'{COMPANY_NAME}週報系統')
 
     # ---- 週報提醒設定 ----
     # 每週提醒時間 (星期幾 0=星期一 ... 4=星期五, 時:分)

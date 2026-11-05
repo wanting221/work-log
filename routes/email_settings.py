@@ -141,7 +141,8 @@ def test_smtp_settings():
         flash('您的帳號沒有設定 Email，無法測試寄信', 'danger')
         return redirect(url_for('email_settings.index'))
 
-    ok, msg = send_email(current_user.email, '【測試信】RD週報系統 SMTP 設定測試',
+    from flask import current_app as _app
+    ok, msg = send_email(current_user.email, f"【測試信】{_app.config['COMPANY_NAME']}週報系統 SMTP 設定測試",
                           '這是一封測試信，如果您收到這封信，代表 SMTP 寄件設定正確無誤。')
     if ok:
         flash(f'測試信已寄出至 {current_user.email}，請確認是否收到', 'success')

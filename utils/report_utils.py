@@ -343,7 +343,7 @@ def check_and_notify_all_groups_complete(year, week):
         )
         ok, _ = send_email(
             admin_emails, subject, body,
-            attachments=[(f'RD週報_{year}W{week}_依專案.xlsx', excel_buf.getvalue(), 'xlsx')]
+            attachments=[(f"{current_app.config['COMPANY_NAME']}週報_{year}W{week}_依專案.xlsx", excel_buf.getvalue(), 'xlsx')]
         )
         if ok:
             if already_notified:

@@ -165,7 +165,7 @@ def decrypt_and_parse(encrypted_bytes, encryption_key):
 def reset_all_data():
     """
     資料庫 RESET：清空所有資料表，回到全新安裝的初始狀態
-    （只剩一個預設管理者帳號 A171 / admin123，以及系統運作所需的預設 Email 範本）。
+    （只剩一個預設管理者帳號 A00007 / admin123，以及系統運作所需的預設 Email 範本）。
     這是比「匯入還原」更徹底的操作——匯入還原至少會換成備份檔裡的資料，
     RESET 則是完全清空、不留任何業務資料，執行前呼叫端必須自行確認已經過
     嚴格的身份與意圖確認（見 routes/audit.py 的 reset_database 路由）。

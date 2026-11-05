@@ -254,7 +254,7 @@ RESET_CONFIRMATION_PHRASE = '清空資料庫'
 @admin_required
 def reset_database():
     """
-    資料庫 RESET：清空整個系統資料庫回到初始狀態（只留一個預設管理者帳號 A171 /
+    資料庫 RESET：清空整個系統資料庫回到初始狀態（只留一個預設管理者帳號 A00007 /
     admin123，以及系統運作所需的預設 Email 範本）。這是系統裡風險最高的操作，
     比「匯入還原」更徹底——執行前需要同時符合兩項確認：
     1. 正確輸入指定的確認文字
@@ -293,5 +293,5 @@ def reset_database():
     db.session.commit()
 
     logout_user()
-    flash('系統資料庫已重設為初始狀態，請使用預設管理者帳號 A171 / admin123 重新登入。', 'success')
+    flash('系統資料庫已重設為初始狀態，請使用預設管理者帳號 A00007 / admin123 重新登入。', 'success')
     return redirect(url_for('auth.login'))

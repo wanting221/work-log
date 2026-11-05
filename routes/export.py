@@ -3,7 +3,7 @@
 routes/export.py - 匯出/匯入報表
 """
 from datetime import date
-from flask import Blueprint, render_template, request, send_file, flash, redirect, url_for, abort
+from flask import Blueprint, render_template, request, send_file, flash, redirect, url_for, abort, current_app
 from flask_login import login_required, current_user
 from sqlalchemy.orm import joinedload, contains_eager, selectinload
 from extensions import db
@@ -65,7 +65,7 @@ def by_engineer():
 
     buf = export_reports_by_engineer(reports, year, week)
     log_action('export', 'WeeklyReport', None, f'匯出 {year}年第{week}週 依工程師報表')
-    filename = f'RD週報_{year}W{week}_依員工.xlsx'
+    filename = f"{current_app.config['COMPANY_NAME']}週報_{year}W{week}_依員工.xlsx"
     return send_file(buf, as_attachment=True, download_name=filename,
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
@@ -92,7 +92,7 @@ def by_project():
 
     buf = build_project_report_excel(year, week, allowed_project_ids=allowed_project_ids)
     log_action('export', 'WeeklyReport', None, f'匯出 {year}年第{week}週 依專案報表')
-    filename = f'RD週報_{year}W{week}_依專案.xlsx'
+    filename = f"{current_app.config['COMPANY_NAME']}週報_{year}W{week}_依專案.xlsx"
     return send_file(buf, as_attachment=True, download_name=filename,
                       mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 

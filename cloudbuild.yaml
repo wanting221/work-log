@@ -10,43 +10,48 @@
 #      不要寫在這個檔案或 Dockerfile 裡
 
 steps:
-  # 預檢查：確認 Secret Manager 裡的 weekly-report-db-pass 密鑰已經建立好。
-  # 這個密鑰無法由建置流程自動建立（建立密鑰需要先知道密碼本身，而密碼不應該
-  # 出現在這個檔案或建置紀錄裡），必須先手動在 Cloud Shell 建立一次。
-  # 加這個步驟是為了「快速失敗」：如果密鑰不存在，這裡會立刻用清楚的中文訊息
-  # 停下來，不會像沒有這個步驟時一樣，直接在後面的部署步驟丟出一長串不容易看懂的
-  # gcloud 錯誤訊息。
+  # 預檢查（快速失敗）：
+  #   1. 四個 Cloud SQL 替代變數都要有填，否則部署出去的服務會連不到資料庫
+  #      （config.py 在拆開的 DB_* 環境變數不齊全時，會「悄悄」退回用 SQLite）
+  #   2. ${_DB_PASS_SECRET} 指定的 Secret Manager 密鑰要已經存在
+  #      （密鑰需要先手動建立一次，密碼不應該出現在這個檔案或建置紀錄裡）
   - name: 'gcr.io/cloud-builders/gcloud'
-    id: 'check-secret-exists'
+    id: 'preflight-check'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        if ! gcloud secrets describe weekly-report-db-pass --project=${PROJECT_ID} >/dev/null 2>&1; then
-          echo ""
+        missing=""
+        [ -z "${_CLOUDSQL_CONNECTION_NAME}" ] && missing="$$missing _CLOUDSQL_CONNECTION_NAME"
+        [ -z "${_DB_USER}" ] && missing="$$missing _DB_USER"
+        [ -z "${_DB_NAME}" ] && missing="$$missing _DB_NAME"
+        [ -z "${_DB_PASS_SECRET}" ] && missing="$$missing _DB_PASS_SECRET"
+        if [ -n "$$missing" ]; then
           echo "=========================================================="
-          echo "❌ 部署中止：Secret Manager 裡還沒有 weekly-report-db-pass 這個密鑰"
-          echo "=========================================================="
-          echo ""
-          echo "請先在 Cloud Shell 執行以下指令建立密鑰（把「你的密碼」換成"
-          echo "應用程式使用的資料庫帳號的實際密碼）："
-          echo ""
-          echo "  printf '你的密碼' | gcloud secrets create weekly-report-db-pass \\"
-          echo "    --data-file=- --project=${PROJECT_ID}"
-          echo ""
-          echo "建立密鑰後，還需要授權 Cloud Run 讀取（下面已經直接帶入你專案的實際編號，複製整段執行即可）："
-          echo ""
-          echo "  gcloud secrets add-iam-policy-binding weekly-report-db-pass \\"
-          echo "    --member='serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com' \\"
-          echo "    --role='roles/secretmanager.secretAccessor' \\"
-          echo "    --project=${PROJECT_ID}"
-          echo ""
-          echo "做完之後，重新 push 一次程式碼（或在 Cloud Build 主控台點「重新執行」）"
-          echo "即可繼續部署。"
+          echo "❌ 部署中止：Cloud Build 觸發條件裡還沒填這些替代變數：$$missing"
+          echo "   請到 Cloud Build → 觸發條件 → 編輯 → 替代變數 填入後重新執行"
           echo "=========================================================="
           exit 1
         fi
-        echo "✅ 已確認 weekly-report-db-pass 密鑰存在，繼續進行建置與部署。"
+        if ! gcloud secrets describe "${_DB_PASS_SECRET}" --project=${PROJECT_ID} >/dev/null 2>&1; then
+          echo "=========================================================="
+          echo "❌ 部署中止：Secret Manager 裡找不到 ${_DB_PASS_SECRET} 這個密鑰"
+          echo "=========================================================="
+          echo "請先在 Cloud Shell 建立密鑰（把「你的密碼」換成資料庫帳號的實際密碼）："
+          echo ""
+          echo "  printf '你的密碼' | gcloud secrets create ${_DB_PASS_SECRET} \\"
+          echo "    --data-file=- --project=${PROJECT_ID}"
+          echo ""
+          echo "再授權 Cloud Run 讀取："
+          echo ""
+          echo "  gcloud secrets add-iam-policy-binding ${_DB_PASS_SECRET} \\"
+          echo "    --member='serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com' \\"
+          echo "    --role='roles/secretmanager.secretAccessor' \\"
+          echo "    --project=${PROJECT_ID}"
+          echo "=========================================================="
+          exit 1
+        fi
+        echo "✅ Cloud SQL 替代變數與密鑰 ${_DB_PASS_SECRET} 都已就緒，繼續建置與部署。"
 
   # 建置 Docker 映像檔
   - name: 'gcr.io/cloud-builders/docker'
