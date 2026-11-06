@@ -204,7 +204,7 @@ function buildRow(type, data) {
 
 function handleProjectChange(select) {
   if (select.value === '__new__') {
-    const code = prompt('請輸入新專案代號（例如：ANT）：');
+    const code = prompt('請輸入品牌（例如：FWEE）：');
     if (!code) { select.value = ''; return; }
     fetch('/report/project/quick_add', {
       method: 'POST',

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}{{ company_name }}週報系統{% endblock %} - {{ brand_line }}</title>
+<title>{% block title %}公司週報系統{% endblock %} - {{ brand_line }}</title>
 <link rel="icon" type="image/x-icon" href="{{ static_url('favicon.ico') }}">
 <link rel="shortcut icon" type="image/x-icon" href="{{ static_url('favicon.ico') }}">
 <!-- 提前建立與 CDN 的連線（DNS查詢+TLS握手），減少後面實際下載檔案時的等待時間 -->
@@ -19,7 +19,7 @@
   <button class="btn btn-icon" type="button" data-bs-toggle="offcanvas" data-bs-target="#sidebarOffcanvas">
     <i class="fa-solid fa-bars"></i>
   </button>
-  <span class="mobile-topbar-title ms-2">{{ company_name }}週報系統</span>
+  <span class="mobile-topbar-title ms-2">公司週報系統</span>
 </nav>
 
 <div class="d-flex">

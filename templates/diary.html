@@ -252,7 +252,7 @@ function handleDiaryProjectChange(e) {
   const select = e.target;
   if (select.value !== '__new__') return;
   e.stopImmediatePropagation();
-  const code = prompt('請輸入新專案代號（例如：ANT）：');
+  const code = prompt('請輸入品牌（例如：FWEE）：');
   if (!code) { select.value = ''; return; }
   fetch('/diary/project/quick_add', {
     method: 'POST',

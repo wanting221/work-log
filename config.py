@@ -25,7 +25,7 @@ class Config:
     COMPANY_SHORT_NAME = os.environ.get('COMPANY_SHORT_NAME', 'Mellow雲奧')
     COMPANY_NAME_EN = os.environ.get('COMPANY_NAME_EN', '')
     # 批次匯入／管理者新增帳號時的預設密碼（建議每家公司都設成自己的，並要求員工登入後修改）
-    DEFAULT_NEW_ACCOUNT_PASSWORD = os.environ.get('DEFAULT_NEW_ACCOUNT_PASSWORD', 'ChangeMe-2026!')
+    DEFAULT_NEW_ACCOUNT_PASSWORD = os.environ.get('DEFAULT_NEW_ACCOUNT_PASSWORD', 'Mellow123')
     # 新增人員表單預先帶入的 Email（留空表示不預填）
     DEFAULT_NEW_ACCOUNT_EMAIL = os.environ.get('DEFAULT_NEW_ACCOUNT_EMAIL', '')
     # 系統自動產生的暫時 Email 網域（匯入時對不到帳號的人員會用到）

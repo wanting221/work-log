@@ -32,7 +32,7 @@
         </div>
         <div class="col-md-4">
           <label class="form-label small">寄件者顯示名稱</label>
-          <input class="form-control" name="mail_sender_name" value="{{ settings.get('mail_sender_name', 'RD週報系統') }}">
+          <input class="form-control" name="mail_sender_name" value="{{ settings.get('mail_sender_name', company_name ~ '週報系統') }}">
         </div>
         <div class="col-md-4">
           <label class="form-label small">寄件帳號 (SMTP 帳號)</label>
